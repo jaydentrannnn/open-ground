@@ -6,7 +6,7 @@ with a 'Coming next' panel and spend the time on Builder mode + the demo.
 import pandas as pd
 import streamlit as st
 
-from core import contracts, finance, ui
+from core import contracts, finance, ui, zip_rent
 
 ui.header("Open Ground · Homeowner mode", "Can I add a backyard home, and does it pay back?")
 st.caption("For an Orange County homeowner with space in the backyard: what a backyard home (ADU) costs, "
@@ -43,11 +43,21 @@ with c1.container(border=True, key="tile-inputs"):
                                 "construction loan. Those are often priced differently: ASSUMPTION.") / 100
 
     st.subheader("3 · Rent")
-    sourced = RENTS.get(str(bedrooms))
-    if sourced is None:
-        st.warning(f"No sourced market rent for a {unit.lower()} in our data: **UNKNOWN**. Enter your own.")
-    rent = st.number_input("Monthly rent · ASSUMPTION" if sourced else "Monthly rent (your number)", 500, 10_000,
-                           int(sourced) if sourced else None, 50, help=RENTS["basis"], key=f"rent_{bedrooms}",
+    zip_code = st.text_input("ZIP code (optional)", max_chars=5, placeholder="e.g. 92840",
+                             help="Only used to look up the Census median rent for your area. Not saved.")
+    zr = zip_rent.lookup(zip_code, bedrooms)  # Builder A: Census ACS 2024 B25031 by ZCTA
+    if zr["status"] == "ok":
+        sourced, rent_label, rent_help = zr["rent"], "Monthly rent · Census median for your ZIP area", zr["text"]
+        st.caption(zr["text"])
+    else:
+        if zr["text"]:
+            st.info(zr["text"])
+        sourced, rent_label, rent_help = RENTS.get(str(bedrooms)), "Monthly rent · ASSUMPTION", RENTS["basis"]
+        if sourced is None:
+            st.warning(f"No sourced market rent for a {unit.lower()} in our data: **UNKNOWN**. Enter your own.")
+    rent = st.number_input(rent_label if sourced else "Monthly rent (your number)", 500, 10_000,
+                           int(sourced) if sourced else None, 50, help=rent_help,
+                           key=f"rent_{bedrooms}_{zr['zip'] if zr['status'] == 'ok' else 'county'}",
                            placeholder="Enter a rent")
     exp = st.slider("Vacancy + upkeep share of rent · ASSUMPTION", 0.0, 0.5,
                     A["vacancy_and_expense_share"]["value"], 0.05, help=A["vacancy_and_expense_share"]["basis"])
@@ -94,7 +104,8 @@ with c2:
         st.caption("Not included: permits and city fees, utility hookups, design, site work, property-tax "
                    "change, insurance change, income tax. Impact fees for small ADUs: state law has rules on this "
                    "that we have NOT verified, so treat them as **UNKNOWN** and ask your city.")
-    ui.source_line(["pmms", "rentometer_oc"])
+    ui.source_line(["pmms", "census_acs_b25031_zcta", "census_zcta_county_rel"] if zr["status"] == "ok"
+                   else ["pmms", "rentometer_oc"])
     st.caption("Cost per sq ft: [Terner Center ADU owner survey, Apr 22 2021]"
                "(https://ternercenter.berkeley.edu/blog/cci-adu-survey) (checked 2026-11-07)")
 
