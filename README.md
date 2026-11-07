@@ -10,7 +10,7 @@
 
 **Live demo:** <https://open-ground-sqjmqchnp8w8kc5vegpm8k.streamlit.app/>
 (If it is down, the fallback is a live demo from a laptop: see *Try it*.)
-**Demo video:** TODO: uploaded on the hub
+**Demo video:** uploaded with the submission (86 s, MP4). Made with Claude: Claude scripted it, drove the live app with Playwright and voiced it with the Windows "Zira" text-to-speech voice. Part 1 is a nonprofit builder (Builder mode), Part 2 a homeowner (Homeowner mode, ZIP 92840). Script: [team/DEMO-SCRIPT.md](team/DEMO-SCRIPT.md)
 
 > **Prototype only.** Not legal, financial or lending advice. Numbers marked **ASSUMPTION** are placeholders;
 > **UNKNOWN** means our data could not answer. Talk to a housing attorney, lender or the city before deciding anything.
