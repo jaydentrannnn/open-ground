@@ -11,6 +11,8 @@ Per site:
   - hazards / transit: the parcel OUTLINE is tested against each downloaded layer (any overlap counts,
     and the overlap share is recorded so a sliver is visible in the UI). No per-site requests.
   - SB 4 lead: an OpenStreetMap place of worship inside the parcel -> owner_type_proxy "faith_proxy".
+  - existing land use (SCAG 2024, "updated as of July 2025"), joined like zoning: flags sites that are vacant,
+    parking, under construction (stale: may already be in development) or religious facilities (SB 4 lead).
   - Surplus Land Act notices (fetch_surplus.py): housing-element sites get surplus_notice by APN match, and
     OC surplus parcels NOT on a housing-element list are added as their own sites (outline from SCAG zoning
     by APN; the notice's point if no match). Includes Santa Ana, which the housing-element layer lacks.
@@ -25,9 +27,10 @@ from datetime import datetime
 from shapely.geometry import Point, shape
 from shapely.strtree import STRtree
 
-from common import PROCESSED, RAW, get, write_json
+from common import PROCESSED, RAW, attr_join, get, scag_legend, write_json
 
 ZONING = "https://maps.scag.ca.gov/scaggis/rest/services/LDX/Zoning_poly_OR/MapServer/0"
+LANDUSE = "https://maps.scag.ca.gov/scaggis/rest/services/LDX/Existinglanduse_poly_OR/MapServer/0"
 SQM_PER_ACRE = 4046.8564224  # international acre in square meters (unit definition)
 
 ap = argparse.ArgumentParser()
@@ -86,6 +89,24 @@ for i in range(0, len(apns), 100):
         sla_zoning.setdefault(feat["properties"]["APN24"], feat)
 print(f"surplus notices in OC: {len(sla_rows or [])}; parcels {len(sla_by_apn)}; not on a housing-element list "
       f"{len(sla_only)}; parcel outline found {len(sla_zoning)}")
+
+
+# ---------- existing land use (attribute join, legend from the layer's own metadata) ----------
+lu_legend = scag_legend(LANDUSE)
+landuse = attr_join(LANDUSE, "PID24", pids, "PID24,LU24,LU24_2ND,YEAR")
+sla_landuse = attr_join(LANDUSE, "APN24", list(sla_only), "APN24,LU24,LU24_2ND,YEAR")
+print(f"existing land use matched: {len(landuse)} housing-element, {len(sla_landuse)} surplus parcels")
+
+
+def landuse_fields(row):
+    if not row:
+        return None
+    code = (row.get("LU24") or "").strip()
+    label = lu_legend.get(code, "")
+    low = label.lower()
+    return {"code": code or None, "label": label or None, "year": row.get("YEAR"),
+            "vacant": "vacant" in low, "parking": "parking facilities" in low or "park-and-ride" in low,
+            "under_construction": "under construction" in low, "religious": low == "religious facilities"}
 
 
 # ---------- local layers ----------
@@ -183,6 +204,7 @@ for f in he:
     site = shape(g).buffer(0)
     z = zoning.get(p.get("PID24"), {})
     c = checks(site)
+    lu = landuse_fields(landuse.get(p.get("PID24")))
     apn = p.get("Assessor_Parcel_Number") or p.get("APN24")
     notice = sla_by_apn.get(apn_digits(apn) or p.get("APN24"))
     juris = (p.get("Jurisdiction") or "").title()
@@ -193,7 +215,8 @@ for f in he:
         "city": "County of Orange" if juris == "Orange County" else juris,
         "apn": apn, "address": None,
         "acres": round(p["Shape.STArea()"] / SQM_PER_ACRE, 3) if p.get("Shape.STArea()") else None,
-        "owner_type_proxy": "public_surplus" if notice else ("faith_proxy" if c["_worship"] else None),
+        "owner_type_proxy": "public_surplus" if notice else (
+            "faith_proxy" if (c["_worship"] or (lu or {}).get("religious")) else None),
         "housing_element_site": True,
         "surplus_notice": None if sla_rows is None else bool(notice),
         **zoning_fields(z),
@@ -202,12 +225,12 @@ for f in he:
         "est_homes": int(cap) if cap is not None else None,
         "land_cost_mode": None, "land_cost_per_home": None,
         "source_ids": ["scag_he_sites", "scag_zoning", *FIRE_SRC] + (["hcd_sla_notices"] if sla_rows is not None else [])
-                      + (["osm_worship"] if c["_worship"] else []),
+                      + (["osm_worship"] if c["_worship"] else []) + (["scag_landuse"] if lu else []),
         "synthetic": False,
         "raw": {"site_source": "housing_element",
                 "he_capacity": {k: p.get(f"{k}_HE_Capacity") for k in ("Low_Income", "Moderate_Income",
                                                                         "Above_Moderate_Income", "Total")},
-                "he_year": p.get("YEAR"), "zoning_acres": z.get("ACRES"), "slope": z.get("SLOPE"),
+                "he_year": p.get("YEAR"), "zoning_acres": z.get("ACRES"), "slope": z.get("SLOPE"), "existing_use": lu,
                 **c["raw"], **({"sla": sla_raw(notice)} if notice else {})},
     }
     out.append(feature(site, props))
@@ -218,6 +241,7 @@ for a, r in sorted(sla_only.items()):
     site = shape(zf["geometry"]).buffer(0) if zf and zf.get("geometry") else Point(r["lon"], r["lat"])
     z = zf["properties"] if zf else {}
     c = checks(site, use_worship=False)  # owner is a public agency: worship proxy does not apply
+    lu = landuse_fields(sla_landuse.get(a))
     occupied_home = "occupied" in (r.get("Existing Use/Vacancy") or "").lower()
     props = {
         "id": f"SLA-{r.get('Parent Case')}-{a}",
@@ -231,10 +255,11 @@ for a, r in sorted(sla_only.items()):
         "in_fire_zone": c["in_fire_zone"], "in_flood_zone": c["in_flood_zone"],
         "in_historic_district": None, "in_fault_zone": None, "in_hqta": c["in_hqta"],
         "est_homes": None, "land_cost_mode": None, "land_cost_per_home": None,
-        "source_ids": ["hcd_sla_notices", "scag_zoning", *FIRE_SRC],
+        "source_ids": ["hcd_sla_notices", "scag_zoning", *FIRE_SRC] + (["scag_landuse"] if lu else []),
         "synthetic": False,
         "raw": {"site_source": "surplus_notice", "outline": "parcel" if zf else "notice point only",
-                "zoning_acres": z.get("ACRES"), "slope": z.get("SLOPE"), **c["raw"], "sla": sla_raw(r)},
+                "zoning_acres": z.get("ACRES"), "slope": z.get("SLOPE"), "existing_use": lu, **c["raw"],
+                "sla": sla_raw(r)},
     }
     out.append(feature(site, props))
 

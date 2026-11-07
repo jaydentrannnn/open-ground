@@ -16,11 +16,9 @@ Layers (fields checked 2026-11-07 by reading each layer's REST metadata):
   worship   OpenStreetMap amenity=place_of_worship (SB 4 LEAD only: not ownership).
   zoning legend: SCAG Zoning_poly_OR layer metadata -> data/processed/scag_zoning_codes.json
 """
-import html
 import json
-import re
 
-from common import OC_BBOX, PROCESSED, RAW, fetch_all, get
+from common import OC_BBOX, PROCESSED, RAW, fetch_all, get, scag_legend
 
 LAYERS = {
     "flood": ("https://www.ocgis.com/arcpub/rest/services/Map_Layers/Floodplains/MapServer/0", "1=1",
@@ -62,12 +60,7 @@ except Exception as e:
     print("  Overpass FAILED (SB 4 lead layer skipped; note in README):", e)
 
 # SCAG zoning code legend, parsed from the layer's own metadata (no hand-typed codes)
-meta = get("https://maps.scag.ca.gov/scaggis/rest/services/LDX/Zoning_poly_OR/MapServer/0/metadata", as_json=False)
-t = html.unescape(meta.decode("utf-8", "ignore"))
-legend_html = t[t.find("Legend"):]
-codes = {}
-for code, label in re.findall(r"<SPAN>(\d{4}) ([^<]+)</SPAN>", legend_html):  # one code per HTML element
-    codes.setdefault(code, re.sub(r"\s+", " ", html.unescape(label)).strip())
+codes = scag_legend("https://maps.scag.ca.gov/scaggis/rest/services/LDX/Zoning_poly_OR/MapServer/0")
 (PROCESSED / "scag_zoning_codes.json").write_text(json.dumps({
     "about": "SCAG 2024 zoning codes (ZN24_SCAG) parsed from the Zoning_poly_OR layer metadata. "
              "Metadata says: 2024 zoning at the parcel level, updated as of October 2025.",

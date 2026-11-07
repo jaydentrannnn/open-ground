@@ -80,6 +80,32 @@ def fetch_all(layer_url: str, where: str = "1=1", out_fields: str = "*", bbox: t
     return feats
 
 
+def scag_legend(layer_url: str) -> dict:
+    """{code: label} parsed from a SCAG LDX layer's own metadata page: each legend paragraph reads 'NNNN label'
+    once its tags are stripped (some rows split the code and label into separate tags)."""
+    import html
+    import re
+    t = html.unescape(get(f"{layer_url}/metadata", as_json=False).decode("utf-8", "ignore"))
+    codes = {}
+    for para in re.split(r"</P>", t[t.find("Legend"):], flags=re.I):
+        text = re.sub(r"\s+", " ", html.unescape(re.sub(r"<[^>]+>", " ", para))).strip()
+        m = re.fullmatch(r"(\d{4}) (.+)", text)
+        if m:
+            codes.setdefault(m.group(1), m.group(2).strip())
+    return codes
+
+
+def attr_join(layer_url: str, field: str, keys, out_fields: str, chunk: int = 150) -> dict:
+    """{key: attributes} from an ArcGIS layer by an attribute IN-list (no geometry). First row per key wins."""
+    keys, out = sorted({k for k in keys if k}), {}
+    for i in range(0, len(keys), chunk):
+        where = f"{field} IN ({','.join(repr(str(k)) for k in keys[i:i + chunk])})"
+        d = get(f"{layer_url}/query", {"where": where, "returnGeometry": "false", "outFields": out_fields, "f": "json"})
+        for feat in d.get("features", []):
+            out.setdefault(feat["attributes"][field], feat["attributes"])
+    return out
+
+
 def write_json(name: str, obj, indent: int | None = 1) -> Path:
     p = PROCESSED / name
     p.write_text(json.dumps(obj, indent=indent))

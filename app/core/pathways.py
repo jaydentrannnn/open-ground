@@ -83,9 +83,14 @@ def sb4(site: dict) -> list[dict]:
     own = "Owned by a religious institution or independent college as of Jan 1, 2024 (p.1)"
     if owner in ("faith_proxy", "college_proxy"):
         names = [w.get("name") for w in _raw(site).get("worship_osm", []) if w.get("name")]
-        where = f" ({', '.join(names)})" if names else ""
-        tests = [_t(own, UNKNOWN, f"LEAD: a place of worship is mapped inside this parcel{where} on OpenStreetMap. "
-                                  "Not proof of ownership: confirm on title or the Assessor roll", SB4)]
+        leads = []
+        if _raw(site).get("worship_osm"):
+            leads.append("a place of worship is mapped inside this parcel on OpenStreetMap"
+                         + (f" ({', '.join(names)})" if names else ""))
+        if (_raw(site).get("existing_use") or {}).get("religious"):
+            leads.append("SCAG 2024 existing land use is 'Religious Facilities'")
+        tests = [_t(own, UNKNOWN, f"LEAD: {'; '.join(leads) or 'proxy match'}. Not proof of ownership: "
+                                  "confirm on title or the Assessor roll", SB4)]
     elif owner is None:
         tests = [_t(own, UNKNOWN, "Owner type is not in free parcel data", SB4)]
     else:
@@ -156,6 +161,14 @@ SB9_NOTES = [
 
 
 # ---------------------------------------------------------------------------- other pathways
+def _existing_use(site: dict) -> tuple[str, bool]:
+    """(' Existing use (SCAG 2024): <label>.' or '', is_under_construction)."""
+    eu = _raw(site).get("existing_use") or {}
+    if not eu.get("label"):
+        return "", False
+    return f" Existing use (SCAG 2024 land use, updated July 2025): {eu['label']}.", bool(eu.get("under_construction"))
+
+
 def housing_element(site: dict) -> list[dict]:
     v = site.get("housing_element_site")
     res = UNKNOWN if v is None else (PASS if v else FAIL)
@@ -165,9 +178,14 @@ def housing_element(site: dict) -> list[dict]:
     if cap.get("Total") is not None:
         detail = (f" The city counted {int(cap['Total'])} homes here ({int(cap.get('Low_Income') or 0)} lower-income)"
                   + (f" in its {year} inventory" if year else "") + ".")
+    use, building = _existing_use(site)
     why = {PASS: "On the city's adopted site inventory (check it has not sold or been built: lists go stale)." + detail,
-           FAIL: "Not on the adopted site inventory", UNKNOWN: "Inventory not joined yet"}[res]
-    return [_t("Listed in housing-element site inventory", res, why, "scag_he_sites")]
+           FAIL: "Not on the adopted site inventory", UNKNOWN: "Inventory not joined yet"}[res] + use
+    tests = [_t("Listed in housing-element site inventory", res, why, "scag_he_sites")]
+    if building:
+        tests.append(_t("Not already in development", FAIL, "SCAG 2024 existing land use says Under Construction: "
+                                                          "the listing may be stale", "scag_landuse"))
+    return tests
 
 
 def surplus_land(site: dict) -> list[dict]:
@@ -183,7 +201,7 @@ def surplus_land(site: dict) -> list[dict]:
                      if n.get("status") == "Archive" else ""))
     why = {PASS: "Public agency posted a Surplus Land Act notice" + detail,
            FAIL: "No notice for this APN in HCD's Surplus Land Act list (checked 2026-11-07)",
-           UNKNOWN: "Surplus notices not joined yet"}[res]
+           UNKNOWN: "Surplus notices not joined yet"}[res] + (_existing_use(site)[0] if res == PASS else "")
     return [_t("Surplus Land Act notice", res, why, "hcd_sla_notices")]
 
 

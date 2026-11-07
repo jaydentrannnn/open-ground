@@ -85,3 +85,15 @@ def test_surplus_sites_carry_no_contact_column():
     for s in contracts.load_sites():
         sla = (s.get("raw") or {}).get("sla") or {}
         assert not any("contact" in k.lower() for k in sla), s["id"]
+
+
+def test_religious_land_use_is_a_lead_not_a_pass():
+    site = {"owner_type_proxy": "faith_proxy", "raw": {"existing_use": {"label": "Religious Facilities", "religious": True}}}
+    own = pathways.sb4(site)[0]
+    assert own["result"] == "unknown" and "Religious Facilities" in own["why"]
+
+
+def test_under_construction_flags_stale_housing_element_site():
+    site = {"housing_element_site": True, "raw": {"existing_use": {"label": "Under Construction",
+                                                                   "under_construction": True}}}
+    assert pathways.evaluate(site)["HE"]["verdict"] == "no"
