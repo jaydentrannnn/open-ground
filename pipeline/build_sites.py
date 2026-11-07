@@ -58,7 +58,7 @@ def load_layer(name):
     return {"tree": STRtree(geoms), "geoms": geoms, "props": [f.get("properties", {}) for f in feats]}
 
 
-L = {n: load_layer(n) for n in ("flood", "fire_lra", "fire_sra", "hqta", "worship")}
+L = {n: load_layer(n) for n in ("flood", "fire_lra25", "fire_lra", "fire_sra", "hqta", "worship")}
 
 
 def hits(layer, geom):
@@ -98,9 +98,10 @@ for f in he:
 
     sfha, sfha_h = any_hit(L["flood"], site, lambda q: q.get("SFHA_TF") == "T")
     _, fway_h = any_hit(L["flood"], site, lambda q: "FLOODWAY" in (q.get("ZONE_SUBTY") or "").upper())
-    lra, lra_h = any_hit(L["fire_lra"], site)
-    sra, sra_h = any_hit(L["fire_sra"], site)
-    fire = True if (lra or sra) else (None if None in (lra, sra) else False)
+    lra25, lra25_h = any_hit(L["fire_lra25"], site)  # CAL FIRE LRA map dated 2025-03-24 (primary)
+    lra, lra_h = any_hit(L["fire_lra"], site)        # OC copy, vintage unknown (kept: any hit flags)
+    sra, sra_h = any_hit(L["fire_sra"], site)        # CAL FIRE SRA 2007 (outdated)
+    fire = True if (lra25 or lra or sra) else (None if None in (lra25, sra) else False)
     hqta, _ = any_hit(L["hqta"], site)
     worship_h = hits(L["worship"], site)
 
@@ -127,7 +128,7 @@ for f in he:
         "est_homes": int(cap) if cap is not None else None,
         "land_cost_mode": None,
         "land_cost_per_home": None,
-        "source_ids": ["scag_he_sites", "scag_zoning", "oc_floodplains", "oc_fhsz_lra", "calfire_fhsz_sra_2007",
+        "source_ids": ["scag_he_sites", "scag_zoning", "oc_floodplains", "calfire_fhsz_lra_2025", "oc_fhsz_lra", "calfire_fhsz_sra_2007",
                        "caltrans_hqta"] + (["osm_worship"] if worship_h else []),
         "synthetic": False,
         "raw": {
@@ -137,7 +138,8 @@ for f in he:
             "zoning_acres": z.get("ACRES"), "slope": z.get("SLOPE"),
             "flood_sfha": [{"zone": q.get("FLD_ZONE"), "pct_of_site": pct(s)} for q, s in sfha_h],
             "floodway": [{"zone": q.get("FLD_ZONE"), "pct_of_site": pct(s)} for q, s in fway_h],
-            "fire_very_high": [{"layer": "LRA (OC copy)", "pct_of_site": pct(s)} for _, s in lra_h]
+            "fire_very_high": [{"layer": "LRA 2025 (CAL FIRE)", "pct_of_site": pct(s)} for _, s in lra25_h]
+                              + [{"layer": "LRA (OC copy, vintage unknown)", "pct_of_site": pct(s)} for _, s in lra_h]
                               + [{"layer": "SRA 2007 (CAL FIRE)", "pct_of_site": pct(s)} for _, s in sra_h],
             "worship_osm": [{"osm_id": q.get("osm_id"), "name": q.get("name")} for q, _ in (worship_h or [])],
         },

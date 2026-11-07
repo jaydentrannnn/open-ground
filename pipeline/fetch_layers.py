@@ -8,8 +8,10 @@ Layers (fields checked 2026-11-07 by reading each layer's REST metadata):
   flood     OC Floodplains (county copy of FEMA flood zones). SFHA_TF = FEMA's own "special flood hazard
             area" flag; ZONE_SUBTY marks floodways. Vintage of the county copy: UNKNOWN.
   fire_lra  OC Fire_Hazard_Severity_Zones_LRA: 21 polygons, all HAZ_CLASS 'Very High'. Vintage UNKNOWN.
-  fire_sra  CAL FIRE statewide service, layer 0 "State Responsibility Areas (2007)": OLD MAP. CAL FIRE
-            has issued newer FHSZ maps; this layer may miss or misplace zones. Shown in the UI.
+  fire_lra25 CAL FIRE (org "California Department of Forestry and Fire Protection") FHSALRA25_v1_All:
+            "Fire Hazard Severity Zone classes from the map dated March 24, 2025". Very High only.
+  fire_sra  CAL FIRE statewide service, layer 0 "State Responsibility Areas (2007)": OLD MAP. CAL FIRE's
+            FHSZSRA25_3 layer describes itself as a draft under public comment, so it is a lead, not used.
   hqta      Caltrans CA High-Quality Transit Areas (867 polygons in the OC envelope).
   worship   OpenStreetMap amenity=place_of_worship (SB 4 LEAD only: not ownership).
   zoning legend: SCAG Zoning_poly_OR layer metadata -> data/processed/scag_zoning_codes.json
@@ -25,6 +27,8 @@ LAYERS = {
               "FLD_ZONE,ZONE_SUBTY,SFHA_TF", None),
     "fire_lra": ("https://www.ocgis.com/arcpub/rest/services/Map_Layers/Fire_Hazard_Severity_Zones_LRA/MapServer/0",
                  "HAZ_CLASS='Very High'", "HAZ_CLASS,SRA", None),
+    "fire_lra25": ("https://services1.arcgis.com/jUJYIo9tSA7EHvfZ/arcgis/rest/services/FHSALRA25_v1_All/FeatureServer/0",
+                   "FHSZ_Description='Very High'", "FHSZ_Description,SRA", OC_BBOX, 100),
     "fire_sra": ("https://services.gis.ca.gov/arcgis/rest/services/Environment/Fire_Severity_Zones/MapServer/0",
                  "HAZ_CLASS='Very High'", "HAZ_CLASS,SRA", OC_BBOX),
     "hqta": ("https://caltrans-gis.dot.ca.gov/arcgis/rest/services/CHrailroad/CA_HQ_Transit_Areas/FeatureServer/0",

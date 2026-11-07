@@ -1,7 +1,8 @@
 """Tract-level "who it helps" data for Orange County -> data/processed/tracts.json   OWNER: Builder A
-Run: python pipeline/fetch_area.py      (optional CENSUS_API_KEY in .env; low volume works without)
+Run: python pipeline/fetch_area.py      NEEDS CENSUS_API_KEY in .env (free: https://api.census.gov/data/key_signup.html).
+     As of 2026-11-07 the API redirects keyless calls to missing_key.html.
 
-Census ACS 5-year (VERIFY table ids and the latest vintage before trusting):
+Census ACS 5-year 2024 (table ids checked against the API variable labels 2026-11-07):
   B19013_001E  median household income
   B25070       gross rent as % of income: 007-010 = 30%+, 011 = not computed
   B25014       occupants per room: owner 005-007, renter 011-013 = more than 1.0 per room
@@ -13,16 +14,19 @@ import csv
 import gzip
 import io
 import os
+import sys
 
 from common import get, write_json
 
-YEAR = os.environ.get("ACS_YEAR", "2023")
+YEAR = os.environ.get("ACS_YEAR", "2024")  # latest 5-year on the API, checked 2026-11-07
 VARS = (["B19013_001E", "B25070_001E", "B25070_011E"] + [f"B25070_{i:03d}E" for i in range(7, 11)]
         + ["B25014_001E"] + [f"B25014_{i:03d}E" for i in (5, 6, 7, 11, 12, 13)]
         + ["B19001_001E"] + [f"B19001_{i:03d}E" for i in range(2, 16)])
 params = {"get": ",".join(["NAME"] + VARS), "for": "tract:*", "in": "state:06 county:059"}
-if os.environ.get("CENSUS_API_KEY"):
-    params["key"] = os.environ["CENSUS_API_KEY"]
+if not os.environ.get("CENSUS_API_KEY"):
+    sys.exit("CENSUS_API_KEY missing. Get a free key at https://api.census.gov/data/key_signup.html, "
+             "put CENSUS_API_KEY=... in .env (never commit it), and re-run.")
+params["key"] = os.environ["CENSUS_API_KEY"]
 rows = get(f"https://api.census.gov/data/{YEAR}/acs/acs5", params)
 head, data = rows[0], rows[1:]
 
@@ -53,7 +57,7 @@ for r in data:
     }
 
 # LODES: confirm the latest year at https://lehd.ces.census.gov/data/lodes/LODES8/ca/wac/
-LODES = os.environ.get("LODES_URL", "https://lehd.ces.census.gov/data/lodes/LODES8/ca/wac/ca_wac_S000_JT00_2022.csv.gz")
+LODES = os.environ.get("LODES_URL", "https://lehd.ces.census.gov/data/lodes/LODES8/ca/wac/ca_wac_S000_JT00_2024.csv.gz")  # latest in directory, checked 2026-11-07
 try:
     blob = gzip.decompress(get(LODES, as_json=False, timeout=180))
     for row in csv.DictReader(io.StringIO(blob.decode())):

@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import time
 from pathlib import Path
 
@@ -13,6 +14,15 @@ RAW = ROOT / "data" / "raw"
 PROCESSED = ROOT / "data" / "processed"
 RAW.mkdir(parents=True, exist_ok=True)
 HEADERS = {"User-Agent": "open-ground-hackathon-prototype"}
+
+# Load ROOT/.env (gitignored) into the environment, without a new dependency. Never print values.
+_env = ROOT / ".env"
+if _env.exists():
+    for _line in _env.read_text().splitlines():
+        if "=" in _line and not _line.lstrip().startswith("#"):
+            _k, _v = _line.split("=", 1)
+            if _v.strip():
+                os.environ.setdefault(_k.strip(), _v.strip().strip('"').strip("'"))
 
 
 def get(url: str, params: dict | None = None, as_json: bool = True, sleep: float = 0.4, timeout: int = 60):

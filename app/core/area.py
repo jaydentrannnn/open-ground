@@ -9,7 +9,8 @@ from __future__ import annotations
 METRICS = [
     ("rent_burden_pct", "Renters paying 30%+ of income on rent", True, (20, 70)),
     ("overcrowded_pct", "Overcrowded households", True, (0, 30)),
-    ("eligible_households", "Households under the low-income limit", True, (0, 3000)),
+    ("eligible_households", "Households earning under $150k (ASSUMPTION: nearest ACS income bin to the OC "
+                            "4-person low-income limit of $148,850; mixes household sizes)", True, (0, 3000)),
     ("low_wage_jobs", "Low-wage jobs located in this tract (LODES CE01+CE02)", True, (0, 3000)),
     ("opportunity_score", "TCAC/HCD opportunity (0 low - 3 highest)", True, (0, 3)),
 ]
