@@ -32,6 +32,8 @@ One Streamlit app, two modes, same data:
 - **🏗️ Builder mode:** map and shortlist of Orange County's 2,126 housing-element sites (SCAG), checked
   against zoning, flood, fire, fault, historic-district and transit layers. Each site card shows the law checks,
   hazards and a **gap-per-home** calculator with rate sensitivity and "what a gift closes".
+  *Status:* the live gap currently uses the **assumed household budget** (a share of the family's income, labelled
+  ASSUMPTION). Switching it to the statutory benchmark below is in progress.
 - **🏠 Homeowner mode:** can a backyard home (ADU) pay for itself? Size × cost per sq ft (or a real quote) →
   loan at this week's rate → rent → cash flow → two paybacks → the help that might apply, with each program's
   status checked today.
@@ -56,6 +58,9 @@ maintenance, a utilities allowance, HOA fees and space rent. The price is solved
 **Why it matters:** for the demo family ($90,000, 4 people, a 3-bedroom home, 7.18% rate) the statutory
 benchmark price is **$153,751**. The common shortcut (30% of the family's own income, same costs) gives
 **$221,037**. Using the shortcut understates the gap by about **$67,000 per home**.
+
+*Status:* the statutory engine is built and tested (`finance.statutory_price`, `statutory_rate_sensitivity`,
+32 tests passing), but the live Builder mode does not call it yet: it still shows the shortcut.
 
 The tool also says when it can't answer: no price is shown when the income is above moderate, when the unit is
 over 4 bedrooms, or when the moderate-income floor is above the cap (a funder policy choice). Where the statute
@@ -122,7 +127,9 @@ says $138,600. We use HCD's.
 |---|---|
 | 2,126 housing-element sites, zoning, hazards, transit | working, real public data |
 | Law checks per site | working: yes / no / unknown with the reason and source |
-| Statutory price (HSC 50052.5 + 25 CCR 6920) | working, tested against hand-computed values |
+| Statutory price (HSC 50052.5 + 25 CCR 6920) | partly working: engine built and tested against hand-computed values; not yet shown in Builder mode |
+| Gap per home in Builder mode | working, but uses the assumed household budget (share of income, ASSUMPTION) |
+| Builder mode base map | **broken on the live app**: CARTO tiles now need an API key; switching to keyless OpenStreetMap tiles |
 | Income limits, mortgage rates | working, real (HCD, Freddie Mac) |
 | Cost to build each home | **mocked**: synthetic example numbers, labelled ASSUMPTION |
 | Housing-cost items (insurance, utilities, tax rate...) | **mocked**: placeholders, labelled ASSUMPTION |
