@@ -175,3 +175,41 @@ def test_statutory_price_falls_as_rate_rises_and_flags_infeasible():
     assert hi < lo
     bad = finance.statutory_price(40_000, 1, 0, LIMITS, 0.07, 5_000, 0.011)
     assert bad["feasible"] is False and bad["price"] is None and "cap" in bad["reason"]
+
+
+# ---- Homeowner goal panel (adu_solve) ----
+ADU = {"build_cost": 150_000, "monthly_rent": 2_400, "loan_rate": 0.0718, "cash_in": 50_000,
+       "vacancy_and_expense_share": 0.25, "grants": 0}
+ADU_OK = [("cash_flow", 0), ("cash_flow", 500), ("cash_payback", 8), ("simple_payback", 10)]
+
+
+@pytest.mark.parametrize("goal,target", ADU_OK)
+@pytest.mark.parametrize("solve_for", ["rent", "build_cost", "cash_in"])
+def test_adu_solve_round_trips_or_says_why(goal, target, solve_for):
+    res = finance.adu_solve(goal, target, solve_for, **ADU)
+    if res["value"] is None:
+        assert res["reason"]  # never a silent blank
+        return
+    assert res["value"] >= 0
+    got = res["check"][finance.ADU_GOALS[goal]]
+    assert got == pytest.approx(target, abs=0.01)
+
+
+def test_adu_solve_break_even_rent_matches_hand_math():
+    pmt = finance.payment_from_loan(100_000, 0.0718, 30)
+    res = finance.adu_solve("cash_flow", 0, "rent", **ADU)
+    assert res["value"] == pytest.approx(pmt / 0.75, rel=1e-9)  # net rent exactly covers the loan
+
+
+def test_adu_solve_says_why_when_it_cannot():
+    assert "ignores your cash" in finance.adu_solve("simple_payback", 10, "cash_in", **ADU)["reason"]
+    assert "no cash" in finance.adu_solve("cash_payback", 8, "rent", **{**ADU, "cash_in": 0})["reason"]
+    assert finance.adu_solve("cash_flow", 5_000, "build_cost", **ADU)["value"] is None  # rent too low for any loan
+    assert finance.adu_solve("cash_payback", 0, "rent", **ADU)["reason"]
+    with pytest.raises(ValueError):
+        finance.adu_solve("nope", 1, "rent", **ADU)
+
+
+def test_adu_solve_says_already_met_instead_of_impossible():
+    assert "Already met" in finance.adu_solve("cash_flow", 0, "cash_in", **ADU)["reason"]
+    assert "Already met" in finance.adu_solve("cash_payback", 8, "cash_in", **ADU)["reason"]

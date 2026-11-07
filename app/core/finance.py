@@ -337,3 +337,95 @@ def adu_build_cost(sqft: float, cost_per_sqft: float) -> float:
 def adu_rate_sensitivity(build_cost: float, monthly_rent: float, rates: list[float], **kw) -> list[dict]:
     """Cash flow at several loan rates (same inputs as adu_cashflow)."""
     return [{"rate": r, **adu_cashflow(build_cost, monthly_rent, r, **kw)} for r in rates]
+
+
+# ---- Homeowner goal panel: "I want X: what rent / build cost / cash in gets me there?" ----
+ADU_GOALS = {"cash_payback": "cash_payback_years", "simple_payback": "simple_payback_years", "cash_flow": "net_monthly"}
+ADU_SOLVE_FOR = ("rent", "build_cost", "cash_in")
+
+
+def adu_solve(goal: str, target: float, solve_for: str, build_cost: float, monthly_rent: float, loan_rate: float,
+              cash_in: float = 0.0, years: int = 30, vacancy_and_expense_share: float = 0.25,
+              grants: float = 0.0) -> dict:
+    """Goal-seek for Homeowner mode. Inputs never change themselves: the page shows `value` and offers "Use this".
+
+    goal: "cash_payback" (years to earn back your cash, after the loan), "simple_payback" (years, ignores the
+    loan) or "cash_flow" ($/month after the loan). solve_for: "rent", "build_cost" or "cash_in".
+    Closed-form algebra on adu_cashflow (the loan payment is linear in the amount financed), then the answer is
+    checked by plugging it back into adu_cashflow. Returns {"value": float | None, "reason": str | None, "check"}.
+    None always comes with a reason in plain words; nothing is guessed.
+    """
+    if goal not in ADU_GOALS or solve_for not in ADU_SOLVE_FOR:
+        raise ValueError(f"unknown goal {goal!r} or solve_for {solve_for!r}")
+    if goal != "cash_flow" and not (target and target > 0):
+        return {"value": None, "reason": "Pick a number of years above 0.", "check": None}
+    keep = 1 - vacancy_and_expense_share  # share of rent kept after vacancy and upkeep
+    if keep <= 0:
+        return {"value": None, "reason": "Vacancy + upkeep takes all the rent, so no goal can be met.", "check": None}
+    a = payment_from_loan(1.0, loan_rate, years)  # monthly payment per $1 financed
+    net_cost = build_cost - grants
+    financed = max(build_cost - cash_in - grants, 0.0)
+    v = None
+
+    if goal == "simple_payback":  # (build - grants) / (12 * keep * rent) = T
+        if solve_for == "cash_in":
+            return {"value": None, "reason": "Simple payback ignores your cash and the loan: change the rent or the "
+                                             "build cost instead.", "check": None}
+        if solve_for == "rent":
+            if net_cost <= 0:
+                return {"value": None, "reason": "Grants cover the whole build cost: nothing to pay back.", "check": None}
+            v = net_cost / (12 * target * keep)
+        else:
+            v = 12 * target * keep * monthly_rent + grants
+    else:
+        # needed monthly cash flow after the loan
+        if goal == "cash_flow":
+            need = target
+        else:
+            if solve_for != "cash_in" and cash_in <= 0:
+                return {"value": None, "reason": "You put in no cash, so there is nothing to earn back: use simple "
+                                                 "payback or cash flow instead.", "check": None}
+            need = cash_in / (12 * target) if solve_for != "cash_in" else None
+        if solve_for == "rent":  # keep*R - a*F = need
+            v = (need + a * financed) / keep
+        elif solve_for == "build_cost":  # F = (keep*R - need) / a, build = F + cash + grants
+            f = (keep * monthly_rent - need) / a if a > 0 else None
+            if f is None or f < 0:
+                return {"value": None, "reason": "Even with no loan at all, this rent can't reach that goal.",
+                        "check": None}
+            v = f + cash_in + grants
+        else:  # solve for cash in
+            if goal == "cash_flow":  # F = (keep*R - need) / a, cash = build - grants - F
+                f = (keep * monthly_rent - need) / a if a > 0 else None
+                if f is None or f < 0:
+                    return {"value": None, "reason": "Even paying cash for all of it, this rent can't reach that goal.",
+                            "check": None}
+                if net_cost - f <= 0:  # the goal is already beaten with no cash in at all
+                    now = keep * monthly_rent - a * max(net_cost, 0.0)
+                    return {"value": None, "reason": f"Already met: with $0 cash in, cash flow is ${now:,.0f}/mo.",
+                            "check": None}
+                v = net_cost - f
+            else:  # C / (12T) = keep*R - a*(build - grants - C)  ->  C * (1 - 12*T*a) = 12*T*(keep*R - a*net_cost)
+                den = 1 - 12 * target * a
+                if abs(den) < 1e-12:
+                    return {"value": None, "reason": "No amount of cash gives exactly that payback here.", "check": None}
+                v = 12 * target * (keep * monthly_rent - a * net_cost) / den
+                if v > net_cost:  # would need more cash than the build cost: payback is shorter at every amount
+                    longest = net_cost / (12 * keep * monthly_rent) if monthly_rent > 0 else None
+                    return {"value": None, "check": None, "reason": (
+                        f"Already met: your cash comes back in under {target:g} years at any amount, even paying for "
+                        f"all of it in cash ({longest:.1f} years)." if longest is not None and longest < target else
+                        "No cash in of $0 or more reaches that goal with these inputs.")}
+
+    if v is None or v < 0:
+        what = {"rent": "rent", "build_cost": "build cost", "cash_in": "cash in"}[solve_for]
+        return {"value": None, "reason": f"No {what} of $0 or more reaches that goal with these inputs.", "check": None}
+    args = {"build_cost": build_cost, "monthly_rent": monthly_rent, "cash_in": cash_in}
+    args[{"rent": "monthly_rent", "build_cost": "build_cost", "cash_in": "cash_in"}[solve_for]] = v
+    check = adu_cashflow(args["build_cost"], args["monthly_rent"], loan_rate, cash_in=args["cash_in"], years=years,
+                         vacancy_and_expense_share=vacancy_and_expense_share, grants=grants)
+    got = check[ADU_GOALS[goal]]
+    if got is None or abs(got - target) > max(0.01, abs(target) * 1e-6):
+        what = {"rent": "rent", "build_cost": "build cost", "cash_in": "cash in"}[solve_for]
+        return {"value": None, "reason": f"No {what} reaches exactly that goal with these inputs.", "check": None}
+    return {"value": v, "reason": None, "check": check}
