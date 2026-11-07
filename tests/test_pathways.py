@@ -97,3 +97,12 @@ def test_under_construction_flags_stale_housing_element_site():
     site = {"housing_element_site": True, "raw": {"existing_use": {"label": "Under Construction",
                                                                    "under_construction": True}}}
     assert pathways.evaluate(site)["HE"]["verdict"] == "no"
+
+
+def test_area_weights_are_tagged_assumption_and_note_matches():
+    sc = area.score({"rent_burden_pct": 50})
+    assert "not from a source" in sc["assumption"]
+    w = area.DEFAULT_WEIGHTS
+    for key, pct in [("rent_burden_pct", "30%"), ("overcrowded_pct", "20%"), ("eligible_households", "20%"),
+                     ("low_wage_jobs", "20%"), ("opportunity_score", "10%")]:
+        assert f"{round(w[key] * 100)}%" == pct and pct in area.ASSUMPTION_NOTE

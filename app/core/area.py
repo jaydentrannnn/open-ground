@@ -2,6 +2,9 @@
 
 OWNER: Builder A (Data & Rules). Neighborhood totals only, never individual households.
 A missing metric is skipped and reported, never filled with a guess.
+
+ASSUMPTION: the weights (DEFAULT_WEIGHTS) and the (low, high) scaling ranges in METRICS are the team's own
+choice, not from any source. They decide the ranking. score() returns this as "assumption" so the UI can tag it.
 """
 from __future__ import annotations
 
@@ -19,6 +22,10 @@ DEFAULT_WEIGHTS = {"rent_burden_pct": 0.3, "overcrowded_pct": 0.2, "eligible_hou
                    "low_wage_jobs": 0.2, "opportunity_score": 0.1}
 
 
+ASSUMPTION_NOTE = ("Weights (rent burden 30%, crowding 20%, households under $150k 20%, low-wage jobs 20%, "
+                   "opportunity 10%) and the 0-100 scaling ranges are our choice, not from a source.")
+
+
 def _scale(v, lo, hi, higher_better=True):
     x = (v - lo) / (hi - lo) if hi != lo else 0
     x = min(max(x, 0.0), 1.0)
@@ -28,7 +35,7 @@ def _scale(v, lo, hi, higher_better=True):
 def score(tract: dict | None, weights: dict | None = None) -> dict:
     weights = weights or DEFAULT_WEIGHTS
     if not tract:
-        return {"score": None, "parts": [], "missing": [m[0] for m in METRICS]}
+        return {"score": None, "parts": [], "missing": [m[0] for m in METRICS], "assumption": ASSUMPTION_NOTE}
     parts, missing, total_w, acc = [], [], 0.0, 0.0
     for key, label, hib, (lo, hi) in METRICS:
         v = tract.get(key)
@@ -41,4 +48,4 @@ def score(tract: dict | None, weights: dict | None = None) -> dict:
         acc += s * w
         total_w += w
     sc = round(100 * acc / total_w) if total_w else None
-    return {"score": sc, "parts": parts, "missing": missing}
+    return {"score": sc, "parts": parts, "missing": missing, "assumption": ASSUMPTION_NOTE}
