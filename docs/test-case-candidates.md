@@ -8,7 +8,9 @@
 > pick 2) now show the housing-element test as **unknown**, not "no"; (2) surplus `acres` now uses the SCAG parcel
 > outline, with the notice's figure kept as `raw.notice_acres`. Also new since this was written: an SB 684/1123
 > (starter homes) pathway, Alquist-Priolo fault-zone checks (none of the three picks overlap one) and an
-> "Archive" notice now gives the surplus pathway a "maybe", not a "yes". Re-run the scripts at the end to refresh.
+> "Archive" notice now gives the surplus pathway a "maybe", not a "yes". **AB 2011 (housing on commercial sites)**
+> was added after that: all three picks (and Orange 390-382-11) pass its commercial-zone test, so AB 2011 is the
+> likeliest route; its corridor rules and any city exemption are still unknown. Re-run the scripts at the end to refresh.
 
 Goal: pick the 3 best Surplus Land Act parcels in Orange County for a Habitat-style ownership project of about
 4 to 12 homes, to use as the team's real test case. Prepared 2026-11-07 by Builder A (Data & Rules) with

@@ -145,3 +145,20 @@ def test_archived_surplus_notice_is_maybe_not_yes():
     assert pathways.evaluate(site)["SLA"]["verdict"] == "maybe"
     site["raw"]["sla"]["status"] = "Active"
     assert pathways.evaluate(site)["SLA"]["verdict"] == "yes"
+
+
+def test_ab2011_commercial_zone_passes_zone_test_but_never_yes():
+    ev = pathways.evaluate({"zoning_scag": "1220 Retail Stores and Commercial Services",
+                            "raw": {"existing_use": {"code": "1220", "label": "Retail Stores and Commercial Services"}}})
+    assert ev["AB2011"]["tests"][0]["result"] == "pass" and ev["AB2011"]["verdict"] == "maybe"
+
+
+def test_ab2011_residential_zone_or_industrial_use_fails():
+    assert pathways.evaluate({"zoning_scag": "1120 Multi-Family Residential"})["AB2011"]["verdict"] == "no"
+    ev = pathways.evaluate({"zoning_scag": "1200 Commercial and Services",
+                            "raw": {"existing_use": {"code": "1310", "label": "Light Industrial"}}})
+    assert ev["AB2011"]["verdict"] == "no"
+
+
+def test_ab2011_mixed_use_is_unknown():
+    assert pathways.ab2011({"zoning_scag": "1600 Mixed Residential and Commercial"})[0]["result"] == "unknown"

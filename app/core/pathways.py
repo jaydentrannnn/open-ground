@@ -3,7 +3,7 @@
 OWNER: Builder A (Data & Rules).
 Rule from CLAUDE.md: never invent a statute detail. Every test and note below comes from the HCD
 Housing Law Fact Sheets (April 2026), read in full on 2026-11-07, with the page cited (SB 684 / SB 1123:
-the combined PDF, pp. 67-68). Anything our
+the combined PDF, pp. 67-68; AB 2011: pp. 5-6 and 53). Anything our
 data cannot check stays "unknown": that is most of SB 4's list, and we show it rather than hide it.
 
 evaluate() returns, per pathway: label, verdict, tests (pass / fail / unknown) and notes
@@ -252,6 +252,63 @@ SHRA_NOTES = [
 ]
 
 
+# ---------------------------------------------------------------------------- AB 2011
+AB2011_SRC = "hcd_law_factsheets"
+COMMERCIAL_CODES = {"1200", "1210", "1211", "1212", "1213", "1220", "1221", "1222", "1223"}  # SCAG legend groups
+# "General Office" and "Commercial and Services" (offices, retail, commercial services)
+NOT_COMMERCIAL_PREFIXES = ("11", "13", "14", "18", "2", "4", "8888")  # residential, industrial, transport/utilities,
+# open space, agriculture, water, undevelopable
+
+
+def ab2011(site: dict) -> list[dict]:
+    """AB 2011, Affordable Housing and High Road Jobs Act, Gov Code 65912.100-65912.140.
+    Source: HCD Housing Law Fact Sheets (April 2026), combined PDF pp. 5-6; industrial rule also p. 53 (SB 6 page).
+    The fact sheet does not spell out the corridor, environmental or vacant-site rules, so those stay unknown."""
+    zs = site.get("zoning_scag") or ""
+    code = zs.split(" ", 1)[0] if zs else ""
+    local = site.get("zoning_local")
+    shown = f"SCAG {zs}" + (f"; city code {local}" if local else "")
+    zname = "Zone allows commercial uses: office, retail or parking (p.5)"
+    if not code:
+        zone = _t(zname, UNKNOWN, "Zoning not joined yet", AB2011_SRC)
+    elif code in COMMERCIAL_CODES:
+        zone = _t(zname, PASS, f"{shown}. SCAG's regional code is a translation: confirm office, retail or parking "
+                               "is allowed in the city's use table", AB2011_SRC)
+    elif code.startswith(NOT_COMMERCIAL_PREFIXES):
+        zone = _t(zname, FAIL, f"{shown}: not a commercial zone (other pathways may apply)", AB2011_SRC)
+    else:
+        zone = _t(zname, UNKNOWN, f"{shown}: mixed-use, public-facility or specific-plan zoning. Check whether office, "
+                                  "retail or parking is allowed", AB2011_SRC)
+
+    eu = _raw(site).get("existing_use") or {}
+    iname = "Not on or adjacent to an industrial use (p.53)"
+    if (eu.get("code") or "").startswith("13"):
+        ind = _t(iname, FAIL, f"Existing use is industrial: {eu.get('label')} (SCAG 2024)", AB2011_SRC)
+    else:
+        ind = _t(iname, UNKNOWN, f"Site's own use: {eu.get('label') or 'unknown'} (SCAG 2024). Adjacent parcels "
+                                 "not checked", AB2011_SRC)
+    return [
+        zone, ind,
+        _t("Meets the corridor and other site rules (p.5)", UNKNOWN,
+           "The fact sheet lists environmental criteria, limits on vacant sites and density rules without the "
+           "details; street frontage is not in our data. Read Gov Code 65912.100-65912.140", AB2011_SRC),
+        _t("City has not exempted this parcel (p.5-6)", UNKNOWN,
+           "Cities may exempt parcels by ordinance with no-net-loss findings (HCD letter to Santa Ana, "
+           "Dec 10, 2024). Ask the city", AB2011_SRC),
+    ]
+
+
+AB2011_NOTES = [
+    "Two routes: 100% affordable to lower-income households, or mixed-income at set affordability levels (p.5).",
+    "By-right and exempt from CEQA; no extra fees or requirements because a project uses AB 2011 (p.5).",
+    "Prevailing wage applies; at 50+ units, apprenticeship access and health care are added (p.5).",
+    "In effect July 1, 2023 until January 1, 2033 unless extended (p.5). AB 2243 (2024) widened it, e.g. regional "
+    "mall sites and sites within 500 ft of a freeway with set building features (p.6).",
+    "SB 6 (Middle Class Housing Act, Gov Code 65852.24) also allows housing on these commercial sites, but has no "
+    "ministerial process of its own and adds skilled-and-trained workforce rules (p.52-53).",
+]
+
+
 # ---------------------------------------------------------------------------- other pathways
 def _existing_use(site: dict) -> tuple[str, bool]:
     """(' Existing use (SCAG 2024): <label>.' or '', is_under_construction)."""
@@ -311,10 +368,11 @@ PATHWAYS = {
     "SB4": ("SB 4 faith / college land", sb4),
     "SB9": ("SB 9 lot split / duplex", sb9),
     "SHRA": ("SB 684 / SB 1123 starter homes (10 or fewer)", shra),
+    "AB2011": ("AB 2011 housing on commercial sites", ab2011),
     "HE": ("Housing-element site", housing_element),
     "SLA": ("Surplus public land", surplus_land),
 }
-NOTES = {"SB4": SB4_NOTES, "SB9": SB9_NOTES, "SHRA": SHRA_NOTES}
+NOTES = {"SB4": SB4_NOTES, "SB9": SB9_NOTES, "SHRA": SHRA_NOTES, "AB2011": AB2011_NOTES}
 
 
 def verdict(tests: list[dict]) -> str:
