@@ -65,7 +65,8 @@ def gap(cost_lines: dict[str, float], paid_by: dict[str, float]) -> dict:
     """
     total_cost = sum(v for v in cost_lines.values() if v is not None)
     total_paid = sum(v for v in paid_by.values() if v is not None)
-    missing = [k for k, v in {**cost_lines, **paid_by}.items() if v is None]
+    missing = ([f"cost:{k}" for k, v in cost_lines.items() if v is None]
+               + [f"paid:{k}" for k, v in paid_by.items() if v is None])
     return {"total_cost": total_cost, "total_paid": total_paid, "gap": total_cost - total_paid,
             "missing": missing, "complete": not missing}
 
@@ -196,6 +197,10 @@ def statutory_price(
            "monthly_for_loan": None, "loan": None, "price": None, "feasible": None}
     if c["monthly_cap"] is None:
         return out
+    if c["floor_exceeds_cap"]:
+        out["reason"] = ("HSC 50052.5(b)(4): the 28%-of-income floor is above the cap for this unit size. "
+                         "Which governs is a funder policy choice: UNKNOWN, so no price is shown")
+        return out
     k = loan_from_payment(1.0, annual_rate, years)  # loan supported per $1/month of P&I
     t = property_tax_rate / 12
     available = c["monthly_cap"] - monthly_fixed_costs - t * down_payment
@@ -226,6 +231,33 @@ def rate_sensitivity(
             "family_price": fp["price"],
             "gap": total_cost - fp["price"] - other_sources,
         })
+    return rows
+
+
+def statutory_rate_sensitivity(
+    annual_income: float,
+    household_size: int,
+    bedrooms: int,
+    limits: dict,
+    rates: list[float],
+    monthly_fixed_costs: float,
+    property_tax_rate: float,
+    total_cost: float,
+    other_sources: float,
+    down_payment: float = 0.0,
+    years: int = 30,
+) -> list[dict]:
+    """Scenario M02 on the statutory benchmark: how the gap moves when the rate moves.
+
+    gap is None when no statutory price can be computed (see statutory_price reason).
+    """
+    rows = []
+    for rate in rates:
+        sp = statutory_price(annual_income, household_size, bedrooms, limits, rate, monthly_fixed_costs,
+                             property_tax_rate, down_payment, years)
+        price = sp["price"]
+        rows.append({"rate": rate, "family_price": price,
+                     "gap": None if price is None else total_cost - price - other_sources})
     return rows
 
 

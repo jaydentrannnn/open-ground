@@ -69,8 +69,26 @@ LIMITS = json.loads((Path(__file__).resolve().parents[1] / "data" / "processed" 
 
 def test_gap_flags_unknown_lines():
     g = finance.gap({"land": 100, "fees": None}, {"family": 50})
-    assert g["gap"] == 50 and g["complete"] is False and g["missing"] == ["fees"]
+    assert g["gap"] == 50 and g["complete"] is False and g["missing"] == ["cost:fees"]
     assert finance.gap({"land": 100}, {"family": 100})["complete"] is True
+    # same key on both sides must not hide the unknown cost
+    assert finance.gap({"x": None}, {"x": 50})["complete"] is False
+
+
+def test_statutory_price_withheld_when_floor_exceeds_cap():
+    # moderate 4p household in a studio: cap uses 1p median 97,000 -> 35% x 110% x 97,000 / 12 = 3,112.08;
+    # floor 28% x 160,000 / 12 = 3,733.33 > cap
+    p = finance.statutory_price(160_000, 4, 0, LIMITS, 0.07, 500, 0.011)
+    assert p["floor_exceeds_cap"] is True and p["price"] is None and "policy" in p["reason"]
+
+
+def test_statutory_rate_sensitivity_gap_grows_with_rate():
+    rows = finance.statutory_rate_sensitivity(90_000, 4, 3, LIMITS, [0.06, 0.07, 0.08], 550, 0.011,
+                                              total_cost=535_000, other_sources=155_000)
+    gaps = [r["gap"] for r in rows]
+    assert gaps == sorted(gaps)
+    none = finance.statutory_rate_sensitivity(300_000, 4, 3, LIMITS, [0.07], 550, 0.011, 535_000, 0)
+    assert none[0]["gap"] is None
 
 
 def test_household_size_for_unit_matches_50052_5_h():
