@@ -193,6 +193,23 @@ def checks(site, use_worship=True):
     }
 
 
+POINT_ONLY_KEYS = ("in_fire_zone", "in_flood_zone", "in_fault_zone", "in_hqta")
+
+
+def point_only_results(c):
+    """A notice's point can't clear a whole parcel: a hit still flags the site, but no hit = unknown (None)."""
+    c = {**c, "raw": {**c["raw"], "hazard_basis": "notice point only: a hit flags the site; no hit = unknown"}}
+    for k in POINT_ONLY_KEYS:
+        if c[k] is False:
+            c[k] = None
+    ctx = dict(c["raw"].get("context") or {})
+    for k in ("liquefaction_zone", "landslide_zone"):
+        if ctx.get(k) is False:
+            ctx[k] = None
+    c["raw"]["context"] = ctx
+    return c
+
+
 def zoning_fields(z):
     code = (z.get("ZN24_SCAG") or "").strip()
     geoid = z.get("GEOID20") or ""
@@ -262,6 +279,9 @@ for a, r in sorted(sla_only.items()):
     site = shape(zf["geometry"]).buffer(0) if zf and zf.get("geometry") else Point(r["lon"], r["lat"])
     z = zf["properties"] if zf else {}
     c = checks(site, use_worship=False)  # owner is a public agency: worship proxy does not apply
+    point_only = not (zf and zf.get("geometry"))
+    if point_only:
+        c = point_only_results(c)
     lu = landuse_fields(sla_landuse.get(a))
     occupied_home = "occupied" in (r.get("Existing Use/Vacancy") or "").lower()
     props = {

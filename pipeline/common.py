@@ -29,7 +29,13 @@ def get(url: str, params: dict | None = None, as_json: bool = True, sleep: float
     key = hashlib.sha1((url + json.dumps(params or {}, sort_keys=True)).encode()).hexdigest()[:16]
     cache = RAW / f"{key}.{'json' if as_json else 'bin'}"
     if cache.exists():
-        return json.loads(cache.read_text()) if as_json else cache.read_bytes()
+        if not as_json:
+            return cache.read_bytes()
+        data = json.loads(cache.read_text())
+        if isinstance(data, dict) and "error" in data:  # an error cached by an older run: drop it and refetch
+            cache.unlink()
+        else:
+            return data
     for attempt in (1, 2):
         try:
             r = requests.get(url, params=params, headers=HEADERS, timeout=timeout)
@@ -42,6 +48,10 @@ def get(url: str, params: dict | None = None, as_json: bool = True, sleep: float
     time.sleep(sleep)
     if as_json:
         data = r.json()
+        # ArcGIS reports errors as HTTP 200 + {"error": {...}}. Never cache or return that as data: a silent empty
+        # result would read as "no hazard" downstream. Raising leaves the field unknown (callers catch it).
+        if isinstance(data, dict) and "error" in data:
+            raise RuntimeError(f"service error from {url}: {data['error']}")
         cache.write_text(json.dumps(data))
         return data
     cache.write_bytes(r.content)
@@ -70,12 +80,19 @@ def fetch_all(layer_url: str, where: str = "1=1", out_fields: str = "*", bbox: t
     if bbox:
         q.update({"geometry": ",".join(map(str, bbox)), "geometryType": "esriGeometryEnvelope", "inSR": 4326,
                   "spatialRel": "esriSpatialRelIntersects"})
-    ids = sorted(get(f"{layer_url}/query", q).get("objectIds") or [])
+    first = get(f"{layer_url}/query", q)
+    if "objectIds" not in first:
+        raise RuntimeError(f"no objectIds in response from {layer_url}: layer stays unknown")
+    ids = sorted(first["objectIds"] or [])
     feats = []
     for i in range(0, len(ids), chunk):
         d = get(f"{layer_url}/query", {"objectIds": ",".join(map(str, ids[i:i + chunk])), "outFields": out_fields,
                                        "outSR": 4326, "geometryPrecision": 6, "f": "geojson"}, timeout=120)
-        feats += d.get("features", [])
+        if "features" not in d:
+            raise RuntimeError(f"no features in response from {layer_url}: layer stays unknown")
+        feats += d["features"]
+    if len(feats) != len(ids):  # a partial layer would clear sites it never covered
+        raise RuntimeError(f"incomplete download from {layer_url}: {len(feats)} of {len(ids)} features")
     print(f"  {layer_url.split('/services/')[-1]}: {len(feats)} features")
     return feats
 
