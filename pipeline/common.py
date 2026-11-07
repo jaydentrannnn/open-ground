@@ -49,8 +49,29 @@ def arcgis_point_hits(layer_url: str, lon: float, lat: float) -> bool | None:
         return None
 
 
-def write_json(name: str, obj) -> Path:
+OC_BBOX = (-118.13, 33.38, -117.41, 33.95)  # lon/lat envelope around Orange County, for layer downloads
+
+
+def fetch_all(layer_url: str, where: str = "1=1", out_fields: str = "*", bbox: tuple | None = None,
+              chunk: int = 500) -> list[dict]:
+    """Every feature of an ArcGIS layer as GeoJSON (lon/lat). Ids first, then features in chunks:
+    works on servers without pagination, and each chunk is cached so a re-run makes no requests."""
+    q = {"where": where, "returnIdsOnly": "true", "f": "json"}
+    if bbox:
+        q.update({"geometry": ",".join(map(str, bbox)), "geometryType": "esriGeometryEnvelope", "inSR": 4326,
+                  "spatialRel": "esriSpatialRelIntersects"})
+    ids = sorted(get(f"{layer_url}/query", q).get("objectIds") or [])
+    feats = []
+    for i in range(0, len(ids), chunk):
+        d = get(f"{layer_url}/query", {"objectIds": ",".join(map(str, ids[i:i + chunk])), "outFields": out_fields,
+                                       "outSR": 4326, "geometryPrecision": 6, "f": "geojson"}, timeout=120)
+        feats += d.get("features", [])
+    print(f"  {layer_url.split('/services/')[-1]}: {len(feats)} features")
+    return feats
+
+
+def write_json(name: str, obj, indent: int | None = 1) -> Path:
     p = PROCESSED / name
-    p.write_text(json.dumps(obj, indent=1))
+    p.write_text(json.dumps(obj, indent=indent))
     print("wrote", p)
     return p

@@ -18,3 +18,8 @@ build/
 .next/
 .DS_Store
 *.zip
+
+# from .gitignore.team (START-HERE step 3)
+data/raw/
+.pytest_cache/
+.streamlit/secrets.toml
