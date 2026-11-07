@@ -78,7 +78,7 @@ rows.sort(key=lambda r: (-(r["area_score"] or 0), r["gap_per_home"]))
 left, right = st.columns([3, 2])
 with left:
     st.subheader("Map")
-    m = folium.Map(location=[33.745, -117.868], zoom_start=13, tiles="cartodbpositron")
+    m = folium.Map(location=[33.745, -117.868], zoom_start=13, tiles="OpenStreetMap")
     for r in rows:
         s = r["_site"]
         if s["lat"] is None:
