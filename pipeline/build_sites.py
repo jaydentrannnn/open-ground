@@ -13,6 +13,8 @@ Per site:
   - SB 4 lead: an OpenStreetMap place of worship inside the parcel -> owner_type_proxy "faith_proxy".
   - existing land use (SCAG 2024, "updated as of July 2025"), joined like zoning: flags sites that are vacant,
     parking, under construction (stale: may already be in development) or religious facilities (SB 4 lead).
+  - edge slivers (ASSUMPTION, common.SLIVER_PCT = 1%): when every overlap with a flood, floodway or fire layer
+    covers under 1% of the parcel, the field is unknown (null) and raw.edge_sliver says why; never a pass.
   - context (not legal tests): CGS liquefaction and landslide zones, CalEnviroScreen 5.0 tract percentiles.
   - Surplus Land Act notices (fetch_surplus.py): housing-element sites get surplus_notice by APN match, and
     OC surplus parcels NOT on a housing-element list are added as their own sites (outline from SCAG zoning
@@ -28,7 +30,7 @@ from datetime import datetime
 from shapely.geometry import Point, shape
 from shapely.strtree import STRtree
 
-from common import PROCESSED, RAW, attr_join, get, scag_legend, write_json
+from common import PROCESSED, RAW, SLIVER_PCT, attr_join, edge_sliver_only, get, scag_legend, write_json
 
 ZONING = "https://maps.scag.ca.gov/scaggis/rest/services/LDX/Zoning_poly_OR/MapServer/0"
 LANDUSE = "https://maps.scag.ca.gov/scaggis/rest/services/LDX/Existinglanduse_poly_OR/MapServer/0"
@@ -172,16 +174,31 @@ def checks(site, use_worship=True):
     liq, liq_h = any_hit(L["liquefaction"], site)   # context only: CGS seismic hazard zone (OC copy)
     slide, slide_h = any_hit(L["landslide"], site)  # context only: CGS landslide zone
     fault, fault_h = any_hit(L["fault_ap"], site)    # SB 4 test: CGS Alquist-Priolo Earthquake Fault Zone
+    flood_raw = [{"zone": q.get("FLD_ZONE"), "pct_of_site": pct(s)} for q, s in sfha_h]
+    fway_raw = [{"zone": q.get("FLD_ZONE"), "pct_of_site": pct(s)} for q, s in fway_h]
+    fire_raw = ([{"layer": "LRA 2025 (CAL FIRE)", "pct_of_site": pct(s)} for _, s in lra25_h]
+                + [{"layer": "LRA (OC copy, vintage unknown)", "pct_of_site": pct(s)} for _, s in lra_h]
+                + [{"layer": "SRA 2007 (CAL FIRE)", "pct_of_site": pct(s)} for _, s in sra_h])
+    fire = True if (lra25 or lra or sra) else (None if None in (lra25, sra) else False)
+    # Edge slivers (ASSUMPTION, common.SLIVER_PCT): every overlap under 1% of the parcel -> unknown, not "in zone"
+    sliver = {}
+    if sfha and edge_sliver_only(flood_raw):
+        sfha, sliver["flood_sfha"] = None, True
+    if fway_raw and edge_sliver_only(fway_raw):
+        sliver["floodway"] = True
+    if fire and edge_sliver_only(fire_raw):
+        fire, sliver["fire"] = None, True
     return {
-        "in_fire_zone": True if (lra25 or lra or sra) else (None if None in (lra25, sra) else False),
+        "in_fire_zone": fire,
         "in_fault_zone": fault,
         "in_flood_zone": sfha, "in_hqta": hqta, "_worship": worship_h or [],
         "raw": {
-            "flood_sfha": [{"zone": q.get("FLD_ZONE"), "pct_of_site": pct(s)} for q, s in sfha_h],
-            "floodway": [{"zone": q.get("FLD_ZONE"), "pct_of_site": pct(s)} for q, s in fway_h],
-            "fire_very_high": [{"layer": "LRA 2025 (CAL FIRE)", "pct_of_site": pct(s)} for _, s in lra25_h]
-                              + [{"layer": "LRA (OC copy, vintage unknown)", "pct_of_site": pct(s)} for _, s in lra_h]
-                              + [{"layer": "SRA 2007 (CAL FIRE)", "pct_of_site": pct(s)} for _, s in sra_h],
+            "flood_checked": L["flood"] is not None,
+            "flood_sfha": flood_raw,
+            "floodway": fway_raw,
+            "fire_very_high": fire_raw,
+            "edge_sliver": sliver,  # {"flood_sfha"|"floodway"|"fire": True}: overlaps all under SLIVER_PCT
+            "sliver_threshold_pct": SLIVER_PCT,
             "worship_osm": [{"osm_id": q.get("osm_id"), "name": q.get("name")} for q, _ in (worship_h or [])],
             "fault_ap": [{"quad": q.get("QUAD_NAME"), "pct_of_site": pct(s)} for q, s in fault_h],
             "context": {  # shown per site; NOT legal tests. null = layer not loaded

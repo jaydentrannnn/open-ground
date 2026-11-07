@@ -36,11 +36,24 @@ def _overlaps(items: list[dict], key: str) -> str:
     return "; ".join(bits)
 
 
+def _sliver(site: dict, key: str) -> bool:
+    return bool((_raw(site).get("edge_sliver") or {}).get(key))
+
+
+def _sliver_why(site: dict, items_key: str, label_key: str, map_name: str) -> str:
+    th = _raw(site).get("sliver_threshold_pct", 1.0)
+    return (f"Edge sliver: the parcel touches this zone by only {_overlaps(_raw(site).get(items_key), label_key)} "
+            f"(every overlap under {th:g}% of the parcel). ASSUMPTION: we treat that as a mapping edge, not a finding, "
+            f"so the answer is unknown. Check {map_name} before deciding")
+
+
 def _fire(site: dict, source: str) -> dict:
     v = site.get("in_fire_zone")
     name = "Not in a very high fire hazard severity zone"
     if v is None:
-        return _t(name, UNKNOWN, "Fire maps not checked for this site", source)
+        if _sliver(site, "fire"):
+            return _t(name, UNKNOWN, _sliver_why(site, "fire_very_high", "layer", "CAL FIRE's fire hazard map"), source)
+        return _t(name, UNKNOWN, _raw(site).get("hazard_basis") or "Fire maps not checked for this site", source)
     if v:
         detail = _overlaps(_raw(site).get("fire_very_high"), "layer")
         return _t(name, FAIL, f"Overlaps a Very High zone ({detail or 'see map'}). Checked: {FIRE_MAPS}", source)
@@ -48,21 +61,30 @@ def _fire(site: dict, source: str) -> dict:
 
 
 def _flood(site: dict, source: str) -> list[dict]:
-    v = site.get("in_flood_zone")
+    raw, v = _raw(site), site.get("in_flood_zone")
     sfha_name = "Not in a FEMA special flood hazard area"
     if v is None:
-        out = [_t(sfha_name, UNKNOWN, "Flood layer not checked", source)]
+        if _sliver(site, "flood_sfha"):
+            why = _sliver_why(site, "flood_sfha", "zone", "FEMA's flood map (FIRM, msc.fema.gov)")
+        else:
+            why = raw.get("hazard_basis") or "Flood layer not checked"
+        out = [_t(sfha_name, UNKNOWN, why, source)]
     elif v:
-        out = [_t(sfha_name, FAIL, f"Overlaps SFHA ({_overlaps(_raw(site).get('flood_sfha'), 'zone') or 'see map'}). "
-                                   "A small share may be a mapping sliver: check the FIRM", source)]
+        out = [_t(sfha_name, FAIL, f"Overlaps SFHA ({_overlaps(raw.get('flood_sfha'), 'zone') or 'see map'}). "
+                                   "Confirm on FEMA's flood map (FIRM)", source)]
     else:
         out = [_t(sfha_name, PASS, "No SFHA overlap (FEMA SFHA_TF flag, OC county copy of unknown date)", source)]
-    fw = _raw(site).get("floodway")
+    fw = raw.get("floodway")
     fw_name = "Not in a regulatory floodway"
-    if "floodway" not in _raw(site) or v is None:
+    if "floodway" not in raw or raw.get("flood_checked") is False:
         out.append(_t(fw_name, UNKNOWN, "Floodway not checked", source))
+    elif _sliver(site, "floodway"):
+        out.append(_t(fw_name, UNKNOWN, _sliver_why(site, "floodway", "zone", "FEMA's flood map (FIRM, msc.fema.gov)"),
+                      source))
     elif fw:
         out.append(_t(fw_name, FAIL, f"Overlaps a floodway ({_overlaps(fw, 'zone')})", source))
+    elif raw.get("hazard_basis"):
+        out.append(_t(fw_name, UNKNOWN, raw["hazard_basis"], source))
     else:
         out.append(_t(fw_name, PASS, "No floodway overlap (FEMA ZONE_SUBTY, OC county copy)", source))
     return out
@@ -226,6 +248,8 @@ def shra(site: dict) -> list[dict]:
     if fire:
         f = _t(fname, FAIL, f"Overlaps a Very High fire zone ({_overlaps(_raw(site).get('fire_very_high'), 'layer')})",
                SHRA_SRC)
+    elif _sliver(site, "fire"):
+        f = _t(fname, UNKNOWN, _sliver_why(site, "fire_very_high", "layer", "CAL FIRE's fire hazard map"), SHRA_SRC)
     else:
         f = _t(fname, UNKNOWN, "The fact sheet says 'fire hazard zones' without a severity; we only check Very High "
                                "zones, so lower-severity zones are not ruled out", SHRA_SRC)

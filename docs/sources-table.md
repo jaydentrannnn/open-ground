@@ -118,6 +118,7 @@ checked. "No source" means there is none.
 | Owner cash in: $50,000 | [assumptions.json](/data/processed/assumptions.json): no source | 2026-11-07 | ASSUMPTION | Homeowner mode: loan size and payback |
 | Max homes per site: 9. Basis in the file: 10+ "may trigger SB 4 prevailing wage (UNVERIFIED)" and SB 684/1123 cap at 10. **Disagrees with the SB 4 fact sheet (p.3):** prevailing wage applies to every SB 4 project, whatever its size. SB 684/1123 is not in our source list | [assumptions.json](/data/processed/assumptions.json) | 2026-11-07 | ASSUMPTION | Builder mode filter default and "too big" warning |
 | "Eligible households" = households earning under $150k: the nearest ACS income bin to the OC 4-person low-income limit ($148,850). Mixes household sizes. Labelled in the app, not yet in `assumptions.json` | [Census ACS 5-year API](https://api.census.gov/data.html) | 2026-11-07 | ASSUMPTION | Who it helps tab: Area Benefit Score |
+| Edge-sliver threshold: 1% of the parcel. Parcel lines (SCAG/county) and hazard lines (FEMA, CAL FIRE) are drawn by different agencies, so touching boundaries often overlap by a few feet. When every overlap with a flood, floodway or fire layer is under 1%, the answer is "unknown: check the map", never a pass | [`pipeline/common.py`](/pipeline/common.py) `SLIVER_PCT`: no source | 2026-11-07 | ASSUMPTION | Pipeline hazard fields; site card flood, floodway and fire tests (15 sites: 11 flood, 2 floodway, 2 fire) |
 | Area Benefit Score weights (rent burden 0.3, crowding 0.2, eligible households 0.2, low-wage jobs 0.2, opportunity 0.1) and the 0-1 scaling ranges. Our choice; `area.score()` returns an ASSUMPTION note for the app to show; not yet in `assumptions.json` | [`app/core/area.py`](/app/core/area.py): no source | 2026-11-07 | ASSUMPTION | Who it helps tab; Builder mode shortlist order |
 | The PMMS first-mortgage average used as an ADU loan rate. ADU, HELOC and construction loans are often priced differently. Labelled in the app, not in `assumptions.json` | [Freddie Mac PMMS history](https://www.freddiemac.com/pmms/docs/PMMS_history.csv) | 2026-11-06 | ASSUMPTION | Homeowner mode: loan rate default |
 
@@ -167,6 +168,9 @@ The Builder mode one-pager lists every source in `data/sources.json`, used or no
 
 ### Known gaps
 
+- **Edge slivers are "unknown", not "in the zone".** 15 sites touch a flood, floodway or fire zone by under 1% of
+  the parcel (ASSUMPTION threshold). Their tests say "check FEMA's / CAL FIRE's map" instead of failing. Overlaps of
+  1% or more still fail.
 - **Fault zones are the State's Alquist-Priolo zones.** The SB 4 fact sheet says "earthquake fault zone" without
   defining it. No site overlaps one (nearest about 590 m). Other seismic zones (liquefaction, landslide) are shown
   as context only.

@@ -71,6 +71,19 @@ def arcgis_point_hits(layer_url: str, lon: float, lat: float) -> bool | None:
 
 OC_BBOX = (-118.13, 33.38, -117.41, 33.95)  # lon/lat envelope around Orange County, for layer downloads
 
+# ASSUMPTION (team choice, no source): parcel lines (SCAG/county) and hazard lines (FEMA, CAL FIRE) are drawn by
+# different agencies, so boundaries that should only touch often overlap by a few feet. When EVERY overlap with a
+# hazard layer covers less than this share of the parcel, we call the result unknown ("edge sliver: check the
+# map"), never a pass and never a fail. Overlaps at or above it still count as in the zone.
+SLIVER_PCT = 1.0
+
+
+def edge_sliver_only(overlaps: list[dict], threshold: float = SLIVER_PCT) -> bool:
+    """True when there is at least one overlap and every overlap is a measured share under `threshold` percent.
+    An overlap with no measured share (e.g. a point-only site) is never treated as a sliver."""
+    shares = [o.get("pct_of_site") for o in overlaps or []]
+    return bool(shares) and all(s is not None and s < threshold for s in shares)
+
 
 def fetch_all(layer_url: str, where: str = "1=1", out_fields: str = "*", bbox: tuple | None = None,
               chunk: int = 500) -> list[dict]:

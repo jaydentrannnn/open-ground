@@ -74,3 +74,12 @@ def test_fetch_all_rejects_missing_ids(monkeypatch):
 def test_fetch_all_empty_layer_is_fine(monkeypatch):
     monkeypatch.setattr(common, "get", lambda url, params, **kw: {"objectIds": None})
     assert common.fetch_all("https://example.invalid/layer") == []
+
+
+def test_edge_sliver_rule_is_unknown_band_only():
+    # ASSUMPTION threshold: every overlap must be measured and under SLIVER_PCT to count as a sliver
+    assert common.SLIVER_PCT == 1.0
+    assert common.edge_sliver_only([{"pct_of_site": 0.0}, {"pct_of_site": 0.9}]) is True
+    assert common.edge_sliver_only([{"pct_of_site": 0.4}, {"pct_of_site": 1.0}]) is False  # one real overlap
+    assert common.edge_sliver_only([{"pct_of_site": None}]) is False  # point-only: never a sliver
+    assert common.edge_sliver_only([]) is False

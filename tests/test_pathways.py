@@ -162,3 +162,22 @@ def test_ab2011_residential_zone_or_industrial_use_fails():
 
 def test_ab2011_mixed_use_is_unknown():
     assert pathways.ab2011({"zoning_scag": "1600 Mixed Residential and Commercial"})[0]["result"] == "unknown"
+
+
+def test_edge_sliver_is_unknown_with_reason_never_pass():
+    site = {"in_flood_zone": None, "in_fire_zone": None,
+            "raw": {"flood_checked": True, "flood_sfha": [{"zone": "AE", "pct_of_site": 0.2}],
+                    "floodway": [{"zone": "AE", "pct_of_site": 0.1}],
+                    "fire_very_high": [{"layer": "LRA 2025 (CAL FIRE)", "pct_of_site": 0.5}],
+                    "edge_sliver": {"flood_sfha": True, "floodway": True, "fire": True}, "sliver_threshold_pct": 1.0}}
+    tests = pathways.sb4(site)
+    hz = [t for t in tests if any(k in t["test"].lower() for k in ("flood", "floodway", "fire"))]
+    assert len(hz) == 3 and all(t["result"] == "unknown" and "Edge sliver" in t["why"] and "ASSUMPTION" in t["why"]
+                                for t in hz)
+    assert pathways.evaluate(site)["SB4"]["verdict"] != "yes"
+
+
+def test_real_overlap_still_fails():
+    site = {"in_flood_zone": True, "raw": {"flood_checked": True, "flood_sfha": [{"zone": "AE", "pct_of_site": 12.0}],
+                                           "floodway": [], "edge_sliver": {}}}
+    assert pathways.sb4(site)[3]["result"] == "fail"
