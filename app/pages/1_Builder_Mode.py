@@ -115,10 +115,10 @@ price_note = (sp.get("reason") if sp["price"] is None else None) if statutory el
 if statutory:
     basis_label = (f"Statutory benchmark · {sp['citation']} (FindLaw copy, checked 2026-11-07) · HCD State Income Limits, "
                    f"memo {limits.get('memo_date')}") if sp.get("citation") else "Statutory benchmark · HSC 50052.5(b): not applicable"
-    basis_sources = ["hsc_50052_5", "hcd_income_2026", "pmms"]
+    basis_sources = ["findlaw_hsc_50052_5", "hsc_50052_5", "ccr_25_6920", "hcd_income_2026", "pmms"]
 else:
     basis_label = f"Assumed household budget · {share:.0%} of {ui.money(income)}/yr (ASSUMPTION)"
-    basis_sources = ["lane3_brief", "pmms"]
+    basis_sources = ["lane3_brief", "ccr_25_6920", "pmms"]
 basis_short = "statutory price" if statutory else "household budget"
 cost_defaults = {k: v["value"] for k, v in A["cost_per_home_defaults"].items() if isinstance(v, dict)}
 other_defaults = {k: v["value"] for k, v in A["other_sources_per_home_defaults"].items()}
