@@ -72,3 +72,16 @@ def test_real_sites_follow_contract():
         assert s["synthetic"] is False and s["lat"] and s["lon"]
         assert s["tract_id"] is None or (len(s["tract_id"]) == 11 and s["tract_id"].startswith("06059"))
         assert s["in_flood_zone"] in (True, False, None)
+
+
+def test_surplus_archive_is_explained_not_hidden():
+    site = {"surplus_notice": True, "raw": {"sla": {"agency": "X", "case": "SLA1", "issued": "01-01-2026",
+                                                    "status": "Archive"}}}
+    t = pathways.surplus_land(site)[0]
+    assert t["result"] == "pass" and "more than 60 days" in t["why"]
+
+
+def test_surplus_sites_carry_no_contact_column():
+    for s in contracts.load_sites():
+        sla = (s.get("raw") or {}).get("sla") or {}
+        assert not any("contact" in k.lower() for k in sla), s["id"]

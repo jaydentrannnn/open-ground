@@ -173,7 +173,16 @@ def housing_element(site: dict) -> list[dict]:
 def surplus_land(site: dict) -> list[dict]:
     v = site.get("surplus_notice")
     res = UNKNOWN if v is None else (PASS if v else FAIL)
-    why = {PASS: "Public agency posted a Surplus Land Act notice", FAIL: "No surplus notice found",
+    n = _raw(site).get("sla") or {}
+    detail = ""
+    if n:
+        detail = (f": {n.get('agency') or 'agency unknown'}, notice {n.get('case')}, issued {n.get('issued') or 'unknown'}"
+                  f", status {n.get('status') or 'unknown'}"
+                  + (" (Archive = sent to HCD more than 60 days ago. The interest window has likely passed; "
+                     "whether the land is still available is unknown until you call the agency)"
+                     if n.get("status") == "Archive" else ""))
+    why = {PASS: "Public agency posted a Surplus Land Act notice" + detail,
+           FAIL: "No notice for this APN in HCD's Surplus Land Act list (checked 2026-11-07)",
            UNKNOWN: "Surplus notices not joined yet"}[res]
     return [_t("Surplus Land Act notice", res, why, "hcd_sla_notices")]
 
