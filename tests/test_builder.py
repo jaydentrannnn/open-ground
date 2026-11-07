@@ -67,6 +67,26 @@ def test_budget_uses_same_costs_as_statutory():
     assert sp["price"] == pytest.approx(153_751, abs=1)
 
 
+def test_budget_price_is_none_not_zero_when_costs_use_the_whole_budget():
+    bp = builder.budget_price_same_costs(20_000, 0.30, 0.0718, 600.0, 0.011)  # cap $500/mo < $600 fixed costs
+    assert bp["price"] is None and bp["reason"]
+    sens = builder.budget_rate_sensitivity(20_000, 0.30, [0.06, 0.07], 600.0, 0.011, 500_000, 0)
+    assert all(r["family_price"] is None and r["gap"] is None for r in sens)
+
+
+def test_one_pager_keeps_pathway_notes():
+    srcs = contracts.load_sources()
+    s = contracts.load_sites()[0]
+    ev = pathways.evaluate(s)
+    g = finance.gap({"land": 100.0}, {"family_price": 50.0})
+    doc = builder.one_pager(s, ev, builder.readiness(s, 9), area.score(None), None,
+                            {"basis_label": "x", "price": 50.0, "other_sources": 0, "cost_total": 100, "gap": g,
+                             "homes_per_1m": None}, srcs, "2026-11-07")
+    md = builder.one_pager_md(doc, srcs)
+    assert "Prevailing wage" in md  # an SB 4 note: a real requirement a nonprofit must see
+    assert "Hazards checked" in md and "Is it safe" not in md
+
+
 def test_hazard_rows_keep_unknown_visible():
     rows = builder.hazards(BLANK)
     assert {r["result"] for r in rows} == {"unknown"}

@@ -211,11 +211,16 @@ def budget_price_same_costs(annual_income: float, housing_share: float, annual_r
     cap = finance.monthly_payment_cap(annual_income, housing_share)
     k = finance.loan_from_payment(1.0, annual_rate, years)
     t = property_tax_rate / 12
-    loan = max(k * (cap - monthly_fixed_costs - t * down_payment) / (1 + k * t), 0.0)
+    available = cap - monthly_fixed_costs - t * down_payment
+    if available <= 0:  # the non-loan costs already use the whole budget: no price works (not $0)
+        return {"monthly_cap": cap, "monthly_fixed_costs": monthly_fixed_costs, "monthly_property_tax": None,
+                "monthly_for_loan": None, "loan": None, "price": None,
+                "reason": "The non-loan housing costs already use the whole budget: no price works"}
+    loan = k * available / (1 + k * t)
     price = loan + down_payment
     tax = t * price
     return {"monthly_cap": cap, "monthly_fixed_costs": monthly_fixed_costs, "monthly_property_tax": tax,
-            "monthly_for_loan": max(cap - monthly_fixed_costs - tax, 0.0), "loan": loan, "price": price}
+            "monthly_for_loan": cap - monthly_fixed_costs - tax, "loan": loan, "price": price, "reason": None}
 
 
 def budget_rate_sensitivity(annual_income: float, housing_share: float, rates: list[float],
@@ -225,7 +230,7 @@ def budget_rate_sensitivity(annual_income: float, housing_share: float, rates: l
     for rate in rates:
         p = budget_price_same_costs(annual_income, housing_share, rate, monthly_fixed_costs, property_tax_rate,
                                     down_payment, years)["price"]
-        rows.append({"rate": rate, "family_price": p, "gap": total_cost - p - other_sources})
+        rows.append({"rate": rate, "family_price": p, "gap": None if p is None else total_cost - p - other_sources})
     return rows
 
 
@@ -279,6 +284,8 @@ def one_pager(site: dict, ev: dict, ready: dict, area_sc: dict, tract: dict | No
     for e in ev.values():
         law.append(f"{e['label']}: {ICON[e['verdict']]}")
         law += [f"    {ICON[t['result']]} {t['test']}: {t['why']}" + cite(t["source"]) for t in e["tests"]]
+        # pathway notes carry material requirements (e.g. SB 4 prevailing wage, affordability, Phase I): keep them
+        law += [f"    Note: {n if isinstance(n, str) else n.get('text', n)}" for n in e.get("notes") or []]
 
     hz = [f"{ICON[t['result']]} {t['test']}: {t['why']}" + cite(*t["sources"]) for t in hazards(s)]
 
@@ -325,7 +332,7 @@ def one_pager(site: dict, ev: dict, ready: dict, area_sc: dict, tract: dict | No
         ("Why call this site", [ready["why"]]),
         ("The site", site_lines),
         ("Can we build? (law)", law),
-        ("Is it safe? (hazards)", hz),
+        ("Hazards checked (not a safety finding)", hz),
         ("Who does it help? (area)", who),
         ("Does it pencil? (per home)", pencil),
         ("What we don't know yet (ask before you rely on this)", unknown_lines),

@@ -25,7 +25,8 @@ HAZ_COLOR = {True: "#1f6f4a", None: "#8a8f8c", False: "#c0392b"}
 
 def data_stamp() -> tuple:
     """Modified times of every data file, so a new file from A or C shows on the next rerun (no restart)."""
-    files = [contracts.DATA / "sources.json", *sorted(contracts.PROCESSED.glob("*.json*"))]
+    files = [contracts.DATA / "sources.json",
+             *sorted([*contracts.PROCESSED.glob("*.json"), *contracts.PROCESSED.glob("*.geojson")])]
     return tuple((p.name, p.stat().st_mtime) for p in files if p.exists())
 
 
@@ -99,7 +100,9 @@ with st.sidebar:
         share = st.slider("Budget: share of income for housing · ASSUMPTION", 0.25, 0.35, fam["housing_share"]["value"], 0.01)
         use_habitat_rate = st.toggle("Use a below-market Habitat rate", value=False,
                                      help="Habitat OC's real rate is UNKNOWN. Ask them.")
-        rate = (st.number_input("Habitat rate (%) · ASSUMPTION", 0.0, 10.0, 3.0, 0.25) / 100) if use_habitat_rate \
+        rate = (st.number_input("Habitat rate (%) · ASSUMPTION", 0.0, 10.0,
+                                fam["below_market_rate_placeholder"]["value"] * 100, 0.25,
+                                help=fam["below_market_rate_placeholder"]["basis"]) / 100) if use_habitat_rate \
             else st.number_input(f"Market rate (%) · PMMS {rate_pt['date']}", 0.0, 12.0, rate_pt["rate_30yr"] * 100, 0.05) / 100
 
 # ---------------------------------------------------------------- money (same for all sites until per-site costs exist)
@@ -111,7 +114,8 @@ sp = finance.statutory_price(income, hh, beds, limits, rate, fixed, tax_rate, do
 bp = builder.budget_price_same_costs(income, share, rate, fixed, tax_rate, down, years)
 statutory = basis == STAT
 price = sp["price"] if statutory else bp["price"]
-price_note = (sp.get("reason") if sp["price"] is None else None) if statutory else None
+price_note = sp.get("reason") if statutory and sp["price"] is None else (
+    bp.get("reason") if not statutory and bp["price"] is None else None)
 if statutory:
     basis_label = (f"Statutory benchmark · {sp['citation']} (FindLaw copy, checked 2026-11-07) · HCD State Income Limits, "
                    f"memo {limits.get('memo_date')}") if sp.get("citation") else "Statutory benchmark · HSC 50052.5(b): not applicable"
@@ -131,6 +135,12 @@ def site_costs(site: dict) -> dict:
     if site.get("land_cost_per_home") is not None:
         c["land_and_building_purchase"] = site["land_cost_per_home"]
     return c
+
+
+def effective_costs(site: dict) -> dict:
+    """site_costs() plus the user's edits for this site. Shortlist, card, rate table and one-pager all use this,
+    so every view shows the same gap. An unknown (None) line stays unknown until the user types a value."""
+    return {k: ss.get(f"{site['id']}-{k}", v) for k, v in site_costs(site).items()}
 
 
 def gap_text(g: dict) -> str:
@@ -153,7 +163,7 @@ for s in sites:
     ready = builder.readiness(s, max_homes)
     if hide_hazard and ready["hazard_clear"] is False:
         continue
-    g = finance.gap(site_costs(s), {"family_price": price, **other_defaults})
+    g = finance.gap(effective_costs(s), {"family_price": price, **other_defaults})
     rows.append({"id": s["id"], "site": s, "ev": ev, "best": best, "ready": ready, "gap": g,
                  "area_score": AREAS[s["id"]]["score"], "lower_income": builder.lower_income_homes(s),
                  "homes_per_1m": finance.families_per_million(g["gap"]) if g["complete"] else None})
@@ -278,7 +288,7 @@ if (s.get("est_homes") or 0) > max_homes:
     st.warning(f"{s.get('est_homes')} homes is above your max of {max_homes}. See the SB 4 notes under *Can we build?*")
 
 # cost lines the user may edit below (read first so every number on the card agrees)
-cost = {k: ss.get(f"{sid}-{k}", int(v or 0)) for k, v in site_costs(s).items()}
+cost = effective_costs(s)
 g = finance.gap(cost, {"family_price": price, **other_defaults})
 fpm = finance.families_per_million(g["gap"]) if g["complete"] else None
 
@@ -305,7 +315,7 @@ with q2.container(border=True):
     worst = "fail" if any(t["result"] == "fail" for t in hz) else ("unknown" if any(t["result"] == "unknown" for t in hz) else "pass")
     head = {"fail": ui.chip("fail", "a hazard overlaps"), "unknown": ui.chip("unknown", "partly unchecked"),
             "pass": ui.chip("pass", "clear on every map we checked")}[worst]
-    st.markdown(f"### 🛡️ Is it safe? {head}")
+    st.markdown(f"### 🛡️ Hazards checked {head}")
     for t in hz:
         st.markdown(f"{ui.chip(t['result'])} **{t['test']}**  \n<small>{t['why']}</small>", unsafe_allow_html=True)
     ui.source_line(["oc_floodplains", *builder.FIRE_SOURCES])
@@ -367,7 +377,8 @@ with q4.container(border=True):
     g3.metric("Homes per $1M of gap", f"{fpm:.1f}" if fpm else "n/a")
     if not g["complete"]:
         ui.unknown(f"Missing: {builder.missing_label(g)}. The gap can't be totalled.")
-    st.markdown(f"Cost to create {ui.money(sum(v for v in cost.values() if v is not None))} − family "
+    st.markdown(f"Cost to create {ui.money(sum(v for v in cost.values() if v is not None))}"
+                f"{' (incomplete)' if any(v is None for v in cost.values()) else ''} − family "
                 f"{ui.money(price)} − other sources {ui.money(other_total)}, per home")
     ui.assumption("Cost lines and other sources are copied from the event's SYNTHETIC worked example: the same for "
                   f"every site until a real per-site cost exists. Housing-cost items per 25 CCR 6920 (Cornell LII copy, "
@@ -378,15 +389,21 @@ with q4.container(border=True):
         st.markdown("**Cost to create, per home** (edit with a real deal)")
         cc = st.columns(2)
         for i, (k, v) in enumerate(site_costs(s).items()):
-            cc[i % 2].number_input(k.replace("_", " "), 0, 2_000_000, int(v or 0), 5000, key=f"{sid}-{k}")
+            cc[i % 2].number_input(k.replace("_", " "), 0, 2_000_000, None if v is None else int(v), 5000,
+                                   key=f"{sid}-{k}", placeholder="unknown: type a number")
         st.markdown(f"**If the rate moves** (scenario M02, {basis_short})")
         rlist = [max(rate + d, 0.0) for d in (-0.01, -0.005, 0, 0.005, 0.01)]
-        total_cost = sum(v for v in cost.values() if v is not None)
-        sens = (finance.statutory_rate_sensitivity(income, hh, beds, limits, rlist, fixed, tax_rate, total_cost,
-                                                   other_total, down, years) if statutory else
-                builder.budget_rate_sensitivity(income, share, rlist, fixed, tax_rate, total_cost, other_total, down, years))
-        st.dataframe(pd.DataFrame([{"rate": f"{x['rate']:.2%}", "family price": ui.money(x["family_price"]),
-                                    "gap per home": ui.money(x["gap"])} for x in sens]), hide_index=True, width="stretch")
+        if any(v is None for v in cost.values()):
+            ui.unknown("The rate table needs every cost line: fill the unknown ones above.")
+        else:
+            total_cost = sum(cost.values())
+            sens = (finance.statutory_rate_sensitivity(income, hh, beds, limits, rlist, fixed, tax_rate, total_cost,
+                                                       other_total, down, years) if statutory else
+                    builder.budget_rate_sensitivity(income, share, rlist, fixed, tax_rate, total_cost, other_total, down,
+                                                    years))
+            st.dataframe(pd.DataFrame([{"rate": f"{x['rate']:.2%}", "family price": ui.money(x["family_price"]),
+                                        "gap per home": ui.money(x["gap"])} for x in sens]), hide_index=True,
+                         width="stretch")
         st.markdown("**Who could close the gap** (funds unconfirmed)")
         st.dataframe(pd.DataFrame([{k: p[k] for k in ("name", "who_applies", "max", "status")} for p in programs]),
                      hide_index=True, width="stretch")

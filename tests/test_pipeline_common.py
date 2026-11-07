@@ -34,14 +34,25 @@ def test_get_raises_on_arcgis_error_and_does_not_cache(no_cache, monkeypatch):
 
 
 def test_get_drops_a_cached_error_and_refetches(no_cache, monkeypatch):
-    monkeypatch.setattr(common.requests, "get", lambda *a, **k: _Resp({"error": {"code": 400}}))
-    with pytest.raises(RuntimeError):
-        common.get("https://example.invalid/x", {"a": 1})
-    # simulate an error file left by an older version of get()
-    key_file = next(iter(no_cache.iterdir()), None)
-    assert key_file is None
+    url, params = "https://example.invalid/x", {"a": 1}
+    # an error file left in the cache by an older version of get(), at the exact path get() would read
+    key = common.hashlib.sha1((url + common.json.dumps(params, sort_keys=True)).encode()).hexdigest()[:16]
+    stale = no_cache / f"{key}.json"
+    stale.write_text(common.json.dumps({"error": {"code": 500}}))
     monkeypatch.setattr(common.requests, "get", lambda *a, **k: _Resp({"objectIds": [1]}))
-    assert common.get("https://example.invalid/x", {"a": 1}) == {"objectIds": [1]}
+    assert common.get(url, params) == {"objectIds": [1]}  # refetched, not the cached error
+    assert common.json.loads(stale.read_text()) == {"objectIds": [1]}  # and the good answer replaced it
+
+
+def test_get_returns_a_good_cached_answer_without_a_request(no_cache, monkeypatch):
+    url, params = "https://example.invalid/y", {"b": 2}
+    key = common.hashlib.sha1((url + common.json.dumps(params, sort_keys=True)).encode()).hexdigest()[:16]
+    (no_cache / f"{key}.json").write_text(common.json.dumps({"count": 3}))
+
+    def no_network(*a, **k):
+        raise AssertionError("should have used the cache")
+    monkeypatch.setattr(common.requests, "get", no_network)
+    assert common.get(url, params) == {"count": 3}
 
 
 def test_fetch_all_rejects_partial_downloads(monkeypatch):
