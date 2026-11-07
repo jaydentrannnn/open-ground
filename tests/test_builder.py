@@ -223,3 +223,14 @@ def test_density_watch():
     tiny = {**CLEAR, "est_homes": 56, "acres": 0.013}
     assert "may cover several parcels" in builder.readiness(tiny, 9)["why"]
     assert builder.density_note({"est_homes": 22, "acres": 1.0}) is None
+
+
+def test_site_matches_city_apn_with_or_without_dashes_and_all_words():
+    s = {"name": "Garden Grove · APN 098-120-39", "city": "Garden Grove", "apn": "098-120-39",
+         "address": None, "zoning_local": "R-3"}
+    assert builder.site_matches(s, "") and builder.site_matches(s, None)
+    assert builder.site_matches(s, "garden")
+    assert builder.site_matches(s, "098-120-39") and builder.site_matches(s, "09812039")
+    assert builder.site_matches(s, "grove r-3")  # every word must match
+    assert not builder.site_matches(s, "grove fullerton")
+    assert not builder.site_matches(s, "99999")

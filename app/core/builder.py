@@ -519,3 +519,19 @@ def one_pager_html(doc: dict, sources: dict) -> str:
     return (f"<!doctype html><html lang='en'><head><meta charset='utf-8'><meta name='viewport' "
             f"content='width=device-width,initial-scale=1'><title>{e(doc['title'])} · Open Ground</title>"
             f"<style>{_CSS}</style></head><body>{''.join(body)}</body></html>")
+
+
+# ---------------------------------------------------------------------------- shortlist search
+SEARCH_FIELDS = ("name", "city", "apn", "address", "zoning_local", "zoning_scag")
+
+
+def site_matches(site: dict, query: str | None) -> bool:
+    """Shortlist search: every word of the query is found in the site's name, city, APN, address or zoning
+    (case-insensitive). An APN matches with or without dashes. An empty query matches every site."""
+    hay = " ".join(str(site.get(k) or "") for k in SEARCH_FIELDS).lower()
+    apn_digits = "".join(ch for ch in str(site.get("apn") or "") if ch.isdigit())
+    for word in (query or "").lower().split():
+        bare = word.replace("-", "")
+        if word not in hay and not (bare.isdigit() and bare in apn_digits):
+            return False
+    return True

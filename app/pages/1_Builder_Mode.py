@@ -332,14 +332,20 @@ with left:
         st.rerun()
 
 with right:
+    query = st.text_input("Search the shortlist", key="search", icon=":material/search:",
+                          placeholder="Search by city, APN, address or zoning", label_visibility="collapsed")
+    found = [(n, r) for n, r in enumerate(rows) if builder.site_matches(r["site"], query)]
+    list_ids = [r["id"] for _, r in found]  # "#" stays the overall rank, so a search still shows where a site ranks
     df = pd.DataFrame([{
         "#": n + 1, "Site": r["site"]["name"], "Homes": r["site"].get("est_homes"),
         "Checks": r["ready"]["passed"], "Area": r["area_score"],
-    } for n, r in enumerate(rows)])
-    # a new key when the filters change, so an old row selection can't open the wrong site
-    fkey = abs(hash((tuple(ids), ss["gen"])))  # new order (filters, cost edits) or a closed card = no stale row
+    } for n, r in found], columns=["#", "Site", "Homes", "Checks", "Area"])
+    if query and not found:
+        st.caption(f"No site in this list matches “{query}”. Try fewer words, or clear the filters above.")
+    # a new key when the list changes, so an old row selection can't open the wrong site
+    fkey = abs(hash((tuple(list_ids), ss["gen"])))  # new order (filters, search, cost edits) or a closed card
     event = st.dataframe(
-        df, hide_index=True, width="stretch", height=560, on_select="rerun", selection_mode="single-row",
+        df, hide_index=True, width="stretch", height=510, on_select="rerun", selection_mode="single-row",
         key=f"shortlist-{fkey}",
         column_config={
             "#": st.column_config.NumberColumn("#", width=40),
@@ -354,9 +360,10 @@ with right:
                                                     help="Area Benefit Score 0–100 for the census tract. Weights are "
                                                          "an ASSUMPTION. Blank = no tract data"),
         })
-    st.caption("Select a row to open its site card.")
+    st.caption(f"{len(found):,} of {len(rows):,} sites" + (f" match “{query}”" if query else "")
+               + ". Select a row to open its site card.")
     sel = event.selection.rows if event else []
-    sel_id = ids[sel[0]] if sel and sel[0] < len(ids) else None
+    sel_id = list_ids[sel[0]] if sel and sel[0] < len(list_ids) else None
     if sel_id and sel_id != ss.get("_last_row"):
         ss["_last_row"] = sel_id
         open_card(sel_id)
