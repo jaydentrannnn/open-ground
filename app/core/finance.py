@@ -74,7 +74,9 @@ def gap(cost_lines: dict[str, float], paid_by: dict[str, float]) -> dict:
 # --- Statutory affordable housing cost (ownership) -------------------------------------------
 # Source: Cal. Health & Safety Code 50052.5(b) and (h), read 2026-11-07 from the FindLaw copy
 # ("current as of January 01, 2026"): https://codes.findlaw.com/ca/health-and-safety-code/hsc-sect-50052-5/
-# leginfo.legislature.ca.gov blocks bots; confirm against it in a browser.
+# (b)(1)-(4) confirmed word for word against the official leginfo text by Builder C in a browser, 2026-11-07:
+# https://leginfo.legislature.ca.gov/faces/codes_displaySection.xhtml?lawCode=HSC&sectionNum=50052.5
+# (h) (unit-size mapping) is from the FindLaw copy only: not yet confirmed on leginfo.
 # "Housing cost" items: 25 CCR 6920 (a)-(g), read 2026-11-07 at
 # https://www.law.cornell.edu/regulations/california/25-CCR-6920
 # If federal funds (e.g. HOME) are in a deal, 50052.5(h) defers to federal rules: UNKNOWN here.
@@ -171,6 +173,10 @@ def statutory_monthly_cap(annual_income: float, household_size: int, bedrooms: i
         out["agency_option_monthly"] = 0.30 * annual_income / 12
         out["notes"].append("(b)(3): income at or above 70% of AMI; a funding agency MAY instead require "
                             "cost not exceed 30% of gross income")
+        if annual_income > 0.70 * ami_household:
+            out["notes"].append("INTERPRETATION: the (b)(3) formula text covers lower-income households up to "
+                                "70% of AMI. For incomes above that, the text gives only the optional "
+                                "30%-of-income limit. We still apply 30% x 70% of AMI; confirm with the funder")
     return out
 
 

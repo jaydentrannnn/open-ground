@@ -120,6 +120,7 @@ def test_cap_low_3br_and_agency_option():
     assert c["tier"] == "low" and c["monthly_cap"] == pytest.approx(2_425.50)
     assert c["agency_option_monthly"] == pytest.approx(0.30 * 120_000 / 12)
     assert finance.statutory_monthly_cap(95_000, 4, 3, LIMITS)["agency_option_monthly"] is None
+    assert any("INTERPRETATION" in n for n in c["notes"])  # 120k > 70% of 138,600
 
 
 def test_cap_uses_unit_size_not_family_size():
