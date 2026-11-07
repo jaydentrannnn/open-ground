@@ -80,6 +80,8 @@ event's synthetic example. Every source is in [`data/sources.json`](/data/source
 | CalHFA ADU Grant: latest round fully allocated (Dec 28, 2023) | [CalHFA ADU Grant](https://www.calhfa.ca.gov/adu/) | 2026-11-07 | VERIFIED | Homeowner mode, "Help that might apply" |
 | HCD ADU funding page (lists the CalHFA ADU Grant). Grant availability not confirmed | [HCD ADU funding](https://hcd.ca.gov/building-standards/adu/funding) | 2026-11-07 | UNVERIFIED | Not used by id. `programs.json` notes the CalHFA and HCD pages agree on the grant's maximum |
 | OC average rents. Third-party; date of the data not shown | [Rentometer: Orange County](https://www.rentometer.com/average-rent-in/county/orange-county-ca) | 2026-11-07 | UNVERIFIED | Homeowner mode: 1-bedroom rent default (ASSUMPTION below) |
+| ADU rent by ZIP area: median gross rent for studio, 1BR and 2BR, Census ACS 5-year 2024 (table B25031) for the 92 ZIP Code Tabulation Areas with land in Orange County. Includes utilities; 2020-2024 average, so likely below today's market; all rentals, not ADUs. Census caps some medians ("3,500+"), shown as "or more" | [Census ACS 5-year 2024 API](https://api.census.gov/data/2024/acs/acs5) | 2026-11-07 | VERIFIED | `pipeline/fetch_zip_rents.py` → `zip_rents.json`. Homeowner mode: optional ZIP sets the rent default |
+| Which ZIP areas are in Orange County (and how much of each): Census 2020 ZCTA-to-county relationship file | [Census ZCTA-county file](https://www2.census.gov/geo/docs/maps-data/data/rel2020/zcta520/tab20_zcta520_county20_natl.txt) | 2026-11-07 | VERIFIED | `pipeline/fetch_zip_rents.py`: 92 ZCTAs; 4 have under half their land in OC (flagged) |
 | ADU build cost per sq ft: statewide owner survey, Apr 22, 2021. Page checked; the costs are statewide and from 2021, likely low for OC today | [Terner Center ADU owner survey](https://ternercenter.berkeley.edu/blog/cci-adu-survey) | 2026-11-07 | OUTDATED | Homeowner mode: cost per sq ft default (ASSUMPTION below) |
 
 #### Assumptions
@@ -227,6 +229,7 @@ python pipeline/fetch_surplus.py           # HCD Surplus Land Act notices for OC
 python pipeline/build_sites.py             # joins zoning, land use, hazards, surplus -> data/processed/sites.geojson
 python pipeline/fetch_area.py              # ACS + LODES -> data/processed/tracts.json (needs CENSUS_API_KEY in .env)
 python pipeline/fetch_opportunity.py       # TCAC/HCD 2026 opportunity -> tracts.json (run after fetch_area.py)
+python pipeline/fetch_zip_rents.py         # Census median rent by ZIP area -> zip_rents.json (needs CENSUS_API_KEY)
 python pipeline/fetch_rates.py             # Freddie Mac PMMS -> data/processed/rates.json
 ```
 

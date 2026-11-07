@@ -43,22 +43,33 @@ with c1.container(border=True, key="tile-inputs"):
                                 "construction loan. Those are often priced differently: ASSUMPTION.") / 100
 
     st.subheader("3 · Rent")
-    zip_code = st.text_input("ZIP code (optional)", max_chars=5, placeholder="e.g. 92840",
-                             help="Only used to look up the Census median rent for your area. Not saved.")
-    zr = zip_rent.lookup(zip_code, bedrooms)  # Builder A: Census ACS 2024 B25031 by ZCTA
+    zip_code = st.text_input("Your ZIP code (optional)", max_chars=5, placeholder="e.g. 92840",
+                             help="Sets the rent default from the Census median for your ZIP area. Not saved.")
+    zr = zip_rent.lookup(zip_code, bedrooms)  # Census ACS 2024 B25031 by ZCTA (Builder A)
     if zr["status"] == "ok":
-        sourced, rent_label, rent_help = zr["rent"], "Monthly rent · Census median for your ZIP area", zr["text"]
-        st.caption(zr["text"])
+        sourced, rent_label = zr["rent"], f"Monthly rent · Census median, ZIP area {zr['zip']}"
+        rent_help = zr["text"]
     else:
-        if zr["text"]:
-            st.info(zr["text"])
         sourced, rent_label, rent_help = RENTS.get(str(bedrooms)), "Monthly rent · ASSUMPTION", RENTS["basis"]
+        if zr["status"] == "invalid":
+            st.caption(zr["text"])
+        elif zr["text"]:
+            st.info(zr["text"])
         if sourced is None:
             st.warning(f"No sourced market rent for a {unit.lower()} in our data: **UNKNOWN**. Enter your own.")
     rent = st.number_input(rent_label if sourced else "Monthly rent (your number)", 500, 10_000,
                            int(sourced) if sourced else None, 50, help=rent_help,
                            key=f"rent_{bedrooms}_{zr['zip'] if zr['status'] == 'ok' else 'county'}",
                            placeholder="Enter a rent")
+    if zr["status"] == "ok" and rent is not None:
+        src = f"Census ACS 2024 median, {zip_rent.UNIT[bedrooms]}, ZIP area {zr['zip']}"
+        if rent != zr["rent"]:
+            used = f"**{ui.money(rent)}** (your number)"
+        elif zr["at_least"]:
+            used = f"**{ui.money(rent)} or more** ({src}; Census caps this median, so the real one is higher)"
+        else:
+            used = f"**{ui.money(rent)}** ({src}" + (f", ± {ui.money(zr['moe'])}" if zr["moe"] else "") + ")"
+        st.caption(f"Rent used: {used}")
     exp = st.slider("Vacancy + upkeep share of rent · ASSUMPTION", 0.0, 0.5,
                     A["vacancy_and_expense_share"]["value"], 0.05, help=A["vacancy_and_expense_share"]["basis"])
 
@@ -98,7 +109,11 @@ with c2:
 
     with st.expander("What is assumed here", expanded=False):
         ui.assumption(f"Cost per sq ft: {A['cost_per_sqft']['basis']}")
-        ui.assumption(f"Rent: {RENTS['basis']}")
+        if zr["status"] == "ok":
+            ui.assumption(f"Rent: the Census median for ZIP area {zr['zip']} stands in for your ADU's rent. "
+                          f"{zip_rent.CAVEAT}")
+        else:
+            ui.assumption(f"Rent: {RENTS['basis']}")
         ui.assumption(f"Vacancy + upkeep: {A['vacancy_and_expense_share']['basis']}")
         ui.assumption(f"Cash in: {A['cash_in']['basis']}")
         st.caption("Not included: permits and city fees, utility hookups, design, site work, property-tax "

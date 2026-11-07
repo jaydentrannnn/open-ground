@@ -45,7 +45,8 @@ One Streamlit app, two modes (switch in the top bar), same data:
   - a **one-pager** (Markdown or print-ready HTML) to send a congregation or a funder, with its sources
 - **Homeowner mode:** can a backyard home (ADU) pay for itself? Size × cost per sq ft (or a real quote) → loan at
   this week's rate → rent → cash flow → two paybacks → the help that might apply, with each program's status
-  checked today.
+  checked today. An optional **ZIP code** sets the rent default from the Census median for that ZIP area (studio,
+  1BR or 2BR), with its margin of error; leave it blank to use the county figure or type your own.
 
 Historic districts are **not** checked: that test says "unknown" for every site (see *Known gaps*).
 
@@ -177,6 +178,8 @@ event's synthetic example. Every source is in [`data/sources.json`](data/sources
 | CalHFA ADU Grant: latest round fully allocated (Dec 28, 2023) | [CalHFA ADU Grant](https://www.calhfa.ca.gov/adu/) | 2026-11-07 | VERIFIED | Homeowner mode, "Help that might apply" |
 | HCD ADU funding page (lists the CalHFA ADU Grant). Grant availability not confirmed | [HCD ADU funding](https://hcd.ca.gov/building-standards/adu/funding) | 2026-11-07 | UNVERIFIED | Not used by id. The CalHFA and HCD pages agree on the grant's maximum |
 | OC average rents. Third-party; date of the data not shown | [Rentometer: Orange County](https://www.rentometer.com/average-rent-in/county/orange-county-ca) | 2026-11-07 | UNVERIFIED | Homeowner mode: 1-bedroom rent default (ASSUMPTION below) |
+| ADU rent by ZIP area: median gross rent for studio, 1BR and 2BR, Census ACS 5-year 2024 (table B25031) for the 92 ZIP Code Tabulation Areas with land in Orange County. Includes utilities; 2020-2024 average, so likely below today's market; all rentals, not ADUs. Census caps some medians ("3,500+"), shown as "or more" | [Census ACS 5-year 2024 API](https://api.census.gov/data/2024/acs/acs5) | 2026-11-07 | VERIFIED | `pipeline/fetch_zip_rents.py` → `zip_rents.json`. Homeowner mode: optional ZIP sets the rent default |
+| Which ZIP areas are in Orange County (and how much of each): Census 2020 ZCTA-to-county relationship file | [Census ZCTA-county file](https://www2.census.gov/geo/docs/maps-data/data/rel2020/zcta520/tab20_zcta520_county20_natl.txt) | 2026-11-07 | VERIFIED | `pipeline/fetch_zip_rents.py`: 92 ZCTAs; 4 have under half their land in OC (flagged) |
 | ADU build cost per sq ft: statewide owner survey, Apr 22, 2021. Statewide and from 2021, likely low for OC today | [Terner Center ADU owner survey](https://ternercenter.berkeley.edu/blog/cci-adu-survey) | 2026-11-07 | OUTDATED | Homeowner mode: cost per sq ft default (ASSUMPTION below) |
 
 #### Assumptions
@@ -249,7 +252,7 @@ Every row below is a placeholder. Replace it with a real number and its source. 
   has a sourced land cost, so the land line is the same placeholder everywhere.
 - **Demo family:** $90,000, 4 people, 3 bedrooms.
 - **Housing-cost items:** insurance, upkeep, utilities, HOA, loan insurance, space rent, 1.1% tax rate.
-- **ADU:** cost per sq ft, vacancy share, cash in. Studio and 2-bedroom rents are unknown.
+- **ADU:** cost per sq ft, vacancy share, cash in. Without a ZIP code, studio and 2-bedroom rents are unknown; with one, Census gives a median for most OC ZIP areas (studio 73 of 92, 2BR 88 of 92).
 - **Max 9 homes per site** filter default.
 
 ## Where it gets things wrong (known gaps)
@@ -315,6 +318,7 @@ python pipeline/fetch_surplus.py           # HCD Surplus Land Act notices for OC
 python pipeline/build_sites.py             # joins zoning, land use, hazards, surplus -> data/processed/sites.geojson
 python pipeline/fetch_area.py              # ACS + LODES -> data/processed/tracts.json (needs CENSUS_API_KEY in .env)
 python pipeline/fetch_opportunity.py       # TCAC/HCD 2026 opportunity -> tracts.json (run after fetch_area.py)
+python pipeline/fetch_zip_rents.py         # Census median rent by ZIP area -> zip_rents.json (needs CENSUS_API_KEY)
 python pipeline/fetch_rates.py             # Freddie Mac PMMS -> data/processed/rates.json
 ```
 
