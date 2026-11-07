@@ -27,18 +27,20 @@ unknown and why), hazards, who lives nearby, and the gap per home at today's mor
 
 ## What we built
 
-One Streamlit app, two modes, same data:
+One Streamlit app, two modes (switch in the top bar), same data:
 
-- **🏗️ Builder mode:** **2,235 real Orange County sites**: 2,126 on city housing-element inventories (SCAG) and 109
+- **Builder mode:** **2,235 real Orange County sites**: 2,126 on city housing-element inventories (SCAG) and 109
   parcels with a Surplus Land Act notice (HCD). Each is checked against zoning, existing land use, flood, fire,
   earthquake-fault-zone and transit layers, and its census tract. You get:
-  - **"Call these 3 first"**, then a ranked shortlist and a map (rank by readiness, area benefit, or homes per $1M of gap)
-  - a **site card**: can we build (SB 4, SB 9, SB 684 / SB 1123 starter homes and surplus land, each test yes / no /
+  - **"Call these 3 first"**, then a ranked shortlist and a map (rank by readiness, area benefit, or homes per $1M of gap).
+    Map dots get darker with rank; zoom in to see each lot's real parcel outline (SCAG zoning-parcel layer, fetched live
+    with no key, one request per batch of sites; if it fails we show a dashed ring, never a made-up boundary)
+  - a **site card** that opens as a pop-up, with a square zoomable map of the lot: can we build (SB 4, SB 9, SB 684 / SB 1123 starter homes and surplus land, each test yes / no /
     unknown with the reason and the fact-sheet page cited),
     hazards, who it helps (tract data and an Area Benefit Score), and does it pencil
   - the **gap per home**, with a rate table and "what a gift closes"
   - a **one-pager** (Markdown or print-ready HTML) to send a congregation or a funder, with its sources
-- **🏠 Homeowner mode:** can a backyard home (ADU) pay for itself? Size × cost per sq ft (or a real quote) → loan at
+- **Homeowner mode:** can a backyard home (ADU) pay for itself? Size × cost per sq ft (or a real quote) → loan at
   this week's rate → rent → cash flow → two paybacks → the help that might apply, with each program's status
   checked today.
 
@@ -113,7 +115,7 @@ event's synthetic example. Every source is in [`data/sources.json`](data/sources
 | What | Source | Date checked | Status | Where it's used |
 |---|---|---|---|---|
 | Housing-element sites: 2,126 in 28 OC jurisdictions. 7 cities are not in the layer (see Known gaps) | [SCAG Housing Element Sites](https://maps.scag.ca.gov/scaggis/rest/services/LDX/HousingElementSite_poly_scag/MapServer) | 2026-11-07 | VERIFIED | `pipeline/fetch_sites.py`. Builder mode map and shortlist; housing-element test; "Est. homes" |
-| Zoning per parcel: SCAG regional code and city code. Layer metadata: updated as of October 2025 | [SCAG Zoning_poly_OR](https://maps.scag.ca.gov/scaggis/rest/services/LDX/Zoning_poly_OR/MapServer) | 2026-11-07 | VERIFIED | Pipeline: zoning, acres, slope and census tract per site; legend in `scag_zoning_codes.json`. SB 9 single-family zone test |
+| Zoning per parcel: SCAG regional code and city code. Layer metadata: updated as of October 2025 | [SCAG Zoning_poly_OR](https://maps.scag.ca.gov/scaggis/rest/services/LDX/Zoning_poly_OR/MapServer) | 2026-11-07 | VERIFIED | Pipeline: zoning, acres, slope and census tract per site; legend in `scag_zoning_codes.json`. SB 9 single-family zone test. App: parcel outlines on the map, fetched live by PID24/APN24 (`app/core/parcels.py`) |
 | Existing land use 2024 (vacant, parking, under construction, religious facilities). Layer metadata: updated as of July 2025 | [SCAG Existing Land Use](https://maps.scag.ca.gov/scaggis/rest/services/LDX/Existinglanduse_poly_OR/MapServer) | 2026-11-07 | VERIFIED | Land use for 2,215 of 2,235 sites. "Religious Facilities" is an SB 4 lead |
 | Surplus public land: 113 OC notices on 109 parcels, all status "Archive". Staff contact column dropped | [HCD Surplus Land Act notices (data.ca.gov)](https://data.ca.gov/dataset/surplus-land-act-notices-of-availability-received) | 2026-11-07 | VERIFIED | `pipeline/fetch_surplus.py`: 109 parcels added as sites. Surplus public land test |
 | SB 4 lead: places of worship mapped on OpenStreetMap (896 in OC). Proxy only, not ownership | [OpenStreetMap amenity=place_of_worship](https://wiki.openstreetmap.org/wiki/Tag:amenity%3Dplace_of_worship) | 2026-11-07 | VERIFIED | Owner type "faith_proxy" when one is inside the parcel (30 sites). SB 4 ownership test, shown as a LEAD |
@@ -183,7 +185,7 @@ Every row below is a placeholder. Replace it with a real number and its source. 
 | Family income: $90,000/yr. For 4 people that is very low income in OC (limit $93,050, HCD p.11) | [HCD 2026 State Income Limits](https://www.hcd.ca.gov/sites/default/files/docs/grants-and-funding/income-limits-2026.pdf) | 2026-11-07 | ASSUMPTION | Builder mode default; README example |
 | Home size: 3 bedrooms. HSC 50052.5(h) sizes the cap by bedrooms (3BR = household of 4) | [assumptions.json](data/processed/assumptions.json) | 2026-11-07 | ASSUMPTION | Builder mode default; statutory price |
 | Share of income for housing: 30%. A household budget, not the legal cap | [Lane 3 brief](lanes/3-fund-it/README.md) | 2026-11-07 | ASSUMPTION | Builder mode: the household-budget price (when switched on) |
-| Below-market rate toggle: starts at 3.0%. Habitat OC's real rate is UNKNOWN | [assumptions.json](data/processed/assumptions.json): no source | 2026-11-07 | ASSUMPTION | Builder mode sidebar (off by default) |
+| Below-market rate toggle: starts at 3.0%. Habitat OC's real rate is UNKNOWN | [assumptions.json](data/processed/assumptions.json): no source | 2026-11-07 | ASSUMPTION | Builder mode, "Family & loan" (off by default) |
 | Loan term: 30-year fixed | [assumptions.json](data/processed/assumptions.json): standard term | 2026-11-07 | ASSUMPTION | Both family prices |
 | Property tax: 1.1% of price, 6920(b). 1% general levy plus local add-ons, which vary by area (not checked) | [25 CCR 6920](https://www.law.cornell.edu/regulations/california/25-CCR-6920) | 2026-11-07 | ASSUMPTION | Both family prices |
 | Fire and casualty insurance $150/month (6920(c)), maintenance and repairs $150/month (6920(d)) | [assumptions.json](data/processed/assumptions.json): no source | 2026-11-07 | ASSUMPTION | Both family prices |
