@@ -2,11 +2,23 @@
   "about": "EVERY number we made up lives here, labelled ASSUMPTION with what it is based on. The UI and README read from this file. Replace with real numbers (e.g. from Habitat OC) and change the label to the source id.",
   "family": {
     "household_size": {"value": 4, "label": "ASSUMPTION", "basis": "Typical family size for demo"},
-    "annual_income": {"value": 90000, "label": "ASSUMPTION", "basis": "Demo family below the OC 4-person low-income limit"},
-    "housing_share": {"value": 0.30, "label": "ASSUMPTION", "basis": "Lane 3 brief: housing costs ~30-35% of income (source lane3_brief); statute HSC 50052.5 not yet coded"},
+    "annual_income": {"value": 90000, "label": "ASSUMPTION", "basis": "Demo family. For 4 people this is VERY LOW income in OC (limit $93,050, HCD 2026 State Income Limits p.11)"},
+    "bedrooms": {"value": 3, "label": "ASSUMPTION", "basis": "Demo home size; HSC 50052.5(h) sizes the cap by bedrooms (3BR = household of 4)"},
+    "housing_share": {"value": 0.30, "label": "ASSUMPTION", "basis": "Assumed household budget only (Lane 3 brief: ~30-35% of income, source lane3_brief). The legal benchmark is HSC 50052.5(b), coded in finance.statutory_price"},
     "monthly_tax_insurance_hoa": {"value": 400, "label": "ASSUMPTION", "basis": "Placeholder; no source"},
     "habitat_mortgage_rate": {"value": null, "label": "UNKNOWN", "basis": "Habitat OC's actual rate is unknown: ask them. UI lets you enter one"},
     "term_years": {"value": 30, "label": "ASSUMPTION", "basis": "Standard 30-year fixed"}
+  },
+  "statutory_housing_cost": {
+    "basis": "Items 25 CCR 6920 counts as owner 'housing cost' besides principal and interest (read 2026-11-07, Cornell LII copy). Every dollar value below is a placeholder: replace with a real quote, the HOA budget, and the local housing authority's utility allowance schedule.",
+    "property_tax_rate": {"value": 0.011, "label": "ASSUMPTION", "basis": "6920(b). Placeholder ~1.1% of price: California's 1% general levy plus local voter-approved add-ons, which vary by tax rate area (not checked)"},
+    "fire_casualty_insurance": {"value": 150, "label": "ASSUMPTION", "basis": "6920(c). Placeholder $/month; no source"},
+    "maintenance_repairs": {"value": 150, "label": "ASSUMPTION", "basis": "6920(d). Placeholder $/month; no source"},
+    "utilities_allowance": {"value": 250, "label": "ASSUMPTION", "basis": "6920(e). Placeholder $/month; real figure = local PHA utility allowance schedule (not checked)"},
+    "hoa_fees": {"value": 0, "label": "ASSUMPTION", "basis": "6920(f). Assumes a detached home with no HOA"},
+    "loan_insurance": {"value": 0, "label": "ASSUMPTION", "basis": "6920(a). Assumes no mortgage insurance (e.g. a nonprofit first loan): UNKNOWN per lender"},
+    "space_rent": {"value": 0, "label": "ASSUMPTION", "basis": "6920(g). Assumes the home is not on rented land (a land trust ground lease would add this)"},
+    "down_payment": {"value": 0, "label": "ASSUMPTION", "basis": "No family down payment assumed"}
   },
   "cost_per_home_defaults": {
     "basis": "Copied from the event's SYNTHETIC worked example (source synthetic_deal). Replace with a real deal.",
@@ -21,6 +33,7 @@
   },
   "homeowner_adu": {
     "build_cost": {"value": 300000, "label": "ASSUMPTION", "basis": "Placeholder; replace with a real quote"},
+    "cost_per_sqft": {"value": 250, "label": "ASSUMPTION", "basis": "Terner Center statewide ADU owner survey (blog, Apr 22 2021): median $150,000 or $250/sq ft. Statewide, historical, not OC; likely low today. Excludes site-specific and some soft costs. Replace with a local quote"},
     "monthly_rent": {"value": 2598, "label": "ASSUMPTION", "basis": "Rentometer OC 1-bedroom average (source rentometer_oc; data date not shown)"},
     "vacancy_and_expense_share": {"value": 0.25, "label": "ASSUMPTION", "basis": "Placeholder for vacancy, maintenance, insurance"},
     "cash_in": {"value": 50000, "label": "ASSUMPTION", "basis": "Placeholder owner cash"}

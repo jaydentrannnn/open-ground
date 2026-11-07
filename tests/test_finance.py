@@ -43,3 +43,83 @@ def test_adu_cashflow_basic():
     r = finance.adu_cashflow(300_000, 2_600, 0.07, cash_in=50_000)
     assert r["financed"] == 250_000
     assert r["monthly_loan_payment"] > 0
+
+
+# --- HSC 50052.5 statutory cap (values from HCD 2026 State Income Limits, OC, p.11) ---------
+LIMITS = json.loads((Path(__file__).resolve().parents[1] / "data" / "processed" / "income_limits_2026.json").read_text())
+
+
+def test_gap_flags_unknown_lines():
+    g = finance.gap({"land": 100, "fees": None}, {"family": 50})
+    assert g["gap"] == 50 and g["complete"] is False and g["missing"] == ["fees"]
+    assert finance.gap({"land": 100}, {"family": 100})["complete"] is True
+
+
+def test_household_size_for_unit_matches_50052_5_h():
+    assert [finance.household_size_for_unit(b) for b in range(5)] == [1, 2, 3, 4, 5]
+    assert finance.household_size_for_unit(5) is None
+    assert finance.household_size_for_unit(-1) is None
+
+
+def test_income_tier_edges():
+    # 4-person: very low limit 93,050; low 148,850; moderate 166,300
+    assert finance.income_tier(90_000, 4, LIMITS) == "very_low"   # the demo family
+    assert finance.income_tier(93_050, 4, LIMITS) == "very_low"
+    assert finance.income_tier(93_051, 4, LIMITS) == "low"
+    assert finance.income_tier(166_300, 4, LIMITS) == "moderate"
+    assert finance.income_tier(166_301, 4, LIMITS) == "above_moderate"
+    assert finance.income_tier(50_000, 9, LIMITS) is None
+
+
+def test_cap_very_low_3br():
+    # 3BR -> household of 4 -> median 138,600; very low = 30% x 50%
+    c = finance.statutory_monthly_cap(90_000, 4, 3, LIMITS)
+    assert c["tier"] == "very_low" and c["citation"] == "HSC 50052.5(b)(2)"
+    assert c["monthly_cap"] == pytest.approx(1_732.50)
+
+
+def test_cap_low_3br_and_agency_option():
+    # 30% x 70% x 138,600 / 12 = 2,425.50 ; 70% of 4p median = 97,020
+    c = finance.statutory_monthly_cap(120_000, 4, 3, LIMITS)
+    assert c["tier"] == "low" and c["monthly_cap"] == pytest.approx(2_425.50)
+    assert c["agency_option_monthly"] == pytest.approx(0.30 * 120_000 / 12)
+    assert finance.statutory_monthly_cap(95_000, 4, 3, LIMITS)["agency_option_monthly"] is None
+
+
+def test_cap_uses_unit_size_not_family_size():
+    # 2BR -> household of 3 -> median 124,750, even for a 4-person family
+    c = finance.statutory_monthly_cap(90_000, 4, 2, LIMITS)
+    assert c["ami_adjusted_for_unit"] == 124_750
+    assert c["monthly_cap"] == pytest.approx(0.15 * 124_750 / 12)
+
+
+def test_cap_moderate_floor():
+    # 35% x 110% x 138,600 / 12 = 4,446.75 ; floor 28% of 160,000 / 12 = 3,733.33
+    c = finance.statutory_monthly_cap(160_000, 4, 3, LIMITS)
+    assert c["tier"] == "moderate"
+    assert c["monthly_cap"] == pytest.approx(4_446.75)
+    assert c["monthly_floor"] == pytest.approx(3_733.333, abs=0.01)
+    assert c["floor_exceeds_cap"] is False
+
+
+def test_cap_unknown_cases_return_none():
+    assert finance.statutory_monthly_cap(90_000, 4, 6, LIMITS)["monthly_cap"] is None
+    r = finance.statutory_monthly_cap(300_000, 4, 3, LIMITS)
+    assert r["monthly_cap"] is None and "above the moderate" in r["reason"]
+
+
+def test_statutory_price_solves_tax_consistently():
+    p = finance.statutory_price(90_000, 4, 3, LIMITS, 0.07, monthly_fixed_costs=500,
+                                property_tax_rate=0.011, down_payment=10_000)
+    total = (finance.payment_from_loan(p["loan"], 0.07) + 500 + 0.011 * p["price"] / 12)
+    assert total == pytest.approx(p["monthly_cap"], abs=0.01)
+    assert p["price"] == pytest.approx(p["loan"] + 10_000)
+    assert p["feasible"] is True
+
+
+def test_statutory_price_falls_as_rate_rises_and_flags_infeasible():
+    lo = finance.statutory_price(90_000, 4, 3, LIMITS, 0.05, 500, 0.011)["price"]
+    hi = finance.statutory_price(90_000, 4, 3, LIMITS, 0.08, 500, 0.011)["price"]
+    assert hi < lo
+    bad = finance.statutory_price(40_000, 1, 0, LIMITS, 0.07, 5_000, 0.011)
+    assert bad["feasible"] is False and bad["price"] == 0
