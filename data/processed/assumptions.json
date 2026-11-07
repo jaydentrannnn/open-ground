@@ -35,6 +35,11 @@
     "build_cost": {"value": 300000, "label": "ASSUMPTION", "basis": "Placeholder; replace with a real quote"},
     "cost_per_sqft": {"value": 250, "label": "ASSUMPTION", "basis": "Terner Center statewide ADU owner survey (blog, Apr 22 2021): median $150,000 or $250/sq ft. Statewide, historical, not OC; likely low today. Excludes site-specific and some soft costs. Replace with a local quote"},
     "monthly_rent": {"value": 2598, "label": "ASSUMPTION", "basis": "Rentometer OC 1-bedroom average (source rentometer_oc; data date not shown)"},
+    "monthly_rent_by_bedrooms": {
+      "label": "ASSUMPTION",
+      "basis": "Market rent per unit type. Only 1BR has a figure (Rentometer, third-party, data date not shown). Studio and 2BR are UNKNOWN: the user enters them. HUD FY2026 Fair Market Rents (Santa Ana-Anaheim-Irvine HMFA) are the better source but huduser.gov blocks automated fetches; copy them in by hand. HUD FMR is GROSS rent (includes utilities), not contract rent",
+      "0": null, "1": 2598, "2": null
+    },
     "vacancy_and_expense_share": {"value": 0.25, "label": "ASSUMPTION", "basis": "Placeholder for vacancy, maintenance, insurance"},
     "cash_in": {"value": 50000, "label": "ASSUMPTION", "basis": "Placeholder owner cash"}
   },

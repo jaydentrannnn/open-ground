@@ -43,6 +43,24 @@ def test_adu_cashflow_basic():
     r = finance.adu_cashflow(300_000, 2_600, 0.07, cash_in=50_000)
     assert r["financed"] == 250_000
     assert r["monthly_loan_payment"] > 0
+    assert r["assistance_exceeds_cost"] is False
+
+
+def test_adu_cashflow_flags_assistance_over_cost():
+    r = finance.adu_cashflow(100_000, 2_000, 0.07, cash_in=80_000, grants=40_000)
+    assert r["financed"] == 0 and r["assistance_exceeds_cost"] is True
+
+
+def test_adu_build_cost_scales_with_size():
+    assert finance.adu_build_cost(600, 250) == 150_000
+    assert finance.adu_build_cost(800, 250) > finance.adu_build_cost(600, 250)
+    assert finance.adu_build_cost(0, 250) == 0
+
+
+def test_adu_rate_sensitivity_payment_rises_with_rate():
+    rows = finance.adu_rate_sensitivity(200_000, 2_500, [0.06, 0.07, 0.08], cash_in=20_000)
+    pays = [r["monthly_loan_payment"] for r in rows]
+    assert pays == sorted(pays) and rows[1]["rate"] == 0.07
 
 
 # --- HSC 50052.5 statutory cap (values from HCD 2026 State Income Limits, OC, p.11) ---------

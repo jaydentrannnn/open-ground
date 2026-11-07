@@ -257,8 +257,13 @@ def adu_cashflow(
     vacancy_and_expense_share: float = 0.25,
     grants: float = 0.0,
 ) -> dict:
-    """Homeowner mode: does a backyard home pay for itself?"""
+    """Homeowner mode: does a backyard home pay for itself?
+
+    `grants` should be money actually awarded; unconfirmed programs belong at $0.
+    `assistance_exceeds_cost` flags cash + grants above the build cost (nothing to finance; check inputs).
+    """
     financed = max(build_cost - cash_in - grants, 0.0)
+    assistance_exceeds_cost = (cash_in + grants) > build_cost
     pmt = payment_from_loan(financed, loan_rate, years)
     net_rent = monthly_rent * (1 - vacancy_and_expense_share)
     net_monthly = net_rent - pmt
@@ -272,4 +277,17 @@ def adu_cashflow(
         "net_monthly": net_monthly,
         "cash_payback_years": payback_years,
         "simple_payback_years": simple_payback,
+        "assistance_exceeds_cost": assistance_exceeds_cost,
     }
+
+
+def adu_build_cost(sqft: float, cost_per_sqft: float) -> float:
+    """Hard-cost estimate: size x cost per sq ft (cost_per_sqft is an ASSUMPTION; see assumptions.json)."""
+    if sqft is None or cost_per_sqft is None or sqft <= 0 or cost_per_sqft <= 0:
+        return 0.0
+    return sqft * cost_per_sqft
+
+
+def adu_rate_sensitivity(build_cost: float, monthly_rent: float, rates: list[float], **kw) -> list[dict]:
+    """Cash flow at several loan rates (same inputs as adu_cashflow)."""
+    return [{"rate": r, **adu_cashflow(build_cost, monthly_rent, r, **kw)} for r in rates]
