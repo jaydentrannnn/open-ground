@@ -26,3 +26,4 @@ data/raw/
 
 # local browser-test output
 .playwright-mcp/
+.claude/worktrees/
