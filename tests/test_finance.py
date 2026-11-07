@@ -63,6 +63,12 @@ def test_adu_rate_sensitivity_payment_rises_with_rate():
     assert pays == sorted(pays) and rows[1]["rate"] == 0.07
 
 
+def test_assumptions_area_weights_match_area_py():
+    from core import area
+    a = json.loads((Path(__file__).resolve().parents[1] / "data" / "processed" / "assumptions.json").read_text())
+    assert a["area_score"]["weights"]["value"] == area.DEFAULT_WEIGHTS
+
+
 # --- HSC 50052.5 statutory cap (values from HCD 2026 State Income Limits, OC, p.11) ---------
 LIMITS = json.loads((Path(__file__).resolve().parents[1] / "data" / "processed" / "income_limits_2026.json").read_text())
 

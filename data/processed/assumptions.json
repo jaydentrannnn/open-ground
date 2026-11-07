@@ -5,8 +5,8 @@
     "annual_income": {"value": 90000, "label": "ASSUMPTION", "basis": "Demo family. For 4 people this is VERY LOW income in OC (limit $93,050, HCD 2026 State Income Limits p.11)"},
     "bedrooms": {"value": 3, "label": "ASSUMPTION", "basis": "Demo home size; HSC 50052.5(h) sizes the cap by bedrooms (3BR = household of 4)"},
     "housing_share": {"value": 0.30, "label": "ASSUMPTION", "basis": "Assumed household budget only (Lane 3 brief: ~30-35% of income, source lane3_brief). The legal benchmark is HSC 50052.5(b), coded in finance.statutory_price"},
-    "monthly_tax_insurance_hoa": {"value": 400, "label": "ASSUMPTION", "basis": "Placeholder; no source"},
     "habitat_mortgage_rate": {"value": null, "label": "UNKNOWN", "basis": "Habitat OC's actual rate is unknown: ask them. UI lets you enter one"},
+    "below_market_rate_placeholder": {"value": 0.03, "label": "ASSUMPTION", "basis": "Starting value for the optional below-market-rate toggle in Builder mode. No source: Habitat OC's real rate is UNKNOWN"},
     "term_years": {"value": 30, "label": "ASSUMPTION", "basis": "Standard 30-year fixed"}
   },
   "statutory_housing_cost": {
@@ -32,9 +32,7 @@
     "rent_earned_while_waiting": {"value": 55000, "label": "ASSUMPTION", "basis": "Synthetic example"}
   },
   "homeowner_adu": {
-    "build_cost": {"value": 300000, "label": "ASSUMPTION", "basis": "Placeholder; replace with a real quote"},
     "cost_per_sqft": {"value": 250, "label": "ASSUMPTION", "basis": "Terner Center statewide ADU owner survey (blog, Apr 22 2021): median $150,000 or $250/sq ft. Statewide, historical, not OC; likely low today. Excludes site-specific and some soft costs. Replace with a local quote"},
-    "monthly_rent": {"value": 2598, "label": "ASSUMPTION", "basis": "Rentometer OC 1-bedroom average (source rentometer_oc; data date not shown)"},
     "monthly_rent_by_bedrooms": {
       "label": "ASSUMPTION",
       "basis": "Market rent per unit type. Only 1BR has a figure (Rentometer, third-party, data date not shown). Studio and 2BR are UNKNOWN: the user enters them. HUD FY2026 Fair Market Rents (Santa Ana-Anaheim-Irvine HMFA) are the better source but huduser.gov blocks automated fetches; copy them in by hand. HUD FMR is GROSS rent (includes utilities), not contract rent",
@@ -44,6 +42,11 @@
     "cash_in": {"value": 50000, "label": "ASSUMPTION", "basis": "Placeholder owner cash"}
   },
   "site_rules": {
-    "max_homes_default": {"value": 9, "label": "ASSUMPTION", "basis": "Keep under 10 homes: 10+ may trigger SB 4 prevailing wage (UNVERIFIED) and SB 684/1123 caps at 10"}
+    "max_homes_default": {"value": 9, "label": "ASSUMPTION", "basis": "Demo default for how many homes a small nonprofit takes on per site: the team's choice, NOT a legal threshold. Set your own. Note: per the HCD SB 4 fact sheet (Apr 2026, p.3), prevailing wage applies to every SB 4 project whatever its size"}
+  },
+  "area_score": {
+    "basis": "Area Benefit Score weights and the eligible-households proxy. The team's own choice, no source. They decide the ranking. The live values are in app/core/area.py (DEFAULT_WEIGHTS); tests/test_finance.py checks this copy matches.",
+    "weights": {"value": {"rent_burden_pct": 0.3, "overcrowded_pct": 0.2, "eligible_households": 0.2, "low_wage_jobs": 0.2, "opportunity_score": 0.1}, "label": "ASSUMPTION"},
+    "eligible_households_proxy": {"value": 150000, "label": "ASSUMPTION", "basis": "Households earning under $150k: the nearest ACS income bin to the OC 4-person low-income limit ($148,850, HCD 2026). Mixes household sizes"}
   }
 }
