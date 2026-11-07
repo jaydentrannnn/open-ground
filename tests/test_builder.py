@@ -1,0 +1,107 @@
+"""Builder mode logic (core/builder.py). OWNER: Builder B."""
+import pytest
+
+from core import area, builder, contracts, finance, pathways
+
+CLEAR = {"id": "a", "in_flood_zone": False, "in_fire_zone": False, "in_hqta": True, "est_homes": 8,
+         "owner_type_proxy": None, "raw": {"he_capacity": {"Low_Income": 4, "Total": 8}}}
+FLOOD = {**CLEAR, "id": "b", "in_flood_zone": True, "owner_type_proxy": "faith_proxy"}
+BLANK = {"id": "c"}  # every field unknown, no lat/lon
+
+
+def _row(site, area_score=None, hp=None):
+    return {"id": site["id"], "ready": builder.readiness(site, 9), "area_score": area_score, "homes_per_1m": hp,
+            "lower_income": builder.lower_income_homes(site)}
+
+
+def test_unknown_is_never_a_pass():
+    rd = builder.readiness(BLANK, 9)
+    assert rd["passed"] == 0
+    assert rd["hazard_clear"] is None
+    assert all(c["result"] == "unknown" for c in rd["checks"])
+    assert "Unknown:" in rd["why"]
+
+
+def test_hazard_fail_ranks_below_clear_even_with_more_pluses():
+    rows = builder.rank([_row(FLOOD), _row(CLEAR), _row(BLANK)])["rows"]
+    assert [r["id"] for r in rows] == ["a", "c", "b"]
+    assert "Watch: in a FEMA flood zone" in builder.readiness(FLOOD, 9)["why"]
+
+
+def test_faith_proxy_is_a_lead_not_ownership():
+    c = next(c for c in builder.readiness(FLOOD, 9)["checks"] if c["key"] == "faith")
+    assert c["result"] == "pass" and "not proof of ownership" in c["text"]
+
+
+def test_sorts_say_when_they_cannot_tell_sites_apart():
+    rows = [_row(CLEAR, 50, 4.0), _row(FLOOD, 70, 4.0), _row(BLANK, None, 4.0)]
+    assert "same for every site" in builder.rank(rows, "Homes per $1M of gap")["note"]
+    area_sorted = builder.rank(rows, "Area benefit")
+    assert area_sorted["note"] is None
+    assert [r["id"] for r in area_sorted["rows"]] == ["b", "a", "c"]  # unknown last
+    assert "unknown for all" in builder.rank([_row(CLEAR), _row(BLANK)], "Area benefit")["note"]
+
+
+def test_real_sites_rank_and_give_reasons():
+    sites = contracts.load_sites()
+    tracts = contracts.load_tracts()
+    rows = [{"id": s["id"], "ready": builder.readiness(s, 9), "lower_income": builder.lower_income_homes(s),
+             "area_score": area.score(tracts.get(s.get("tract_id")))["score"], "homes_per_1m": None} for s in sites]
+    top = builder.rank(rows)["rows"][:3]
+    assert all(r["ready"]["why"] for r in top)
+    assert all(r["ready"]["hazard_clear"] is not False for r in top)
+
+
+def test_budget_uses_same_costs_as_statutory():
+    A = contracts.load_assumptions()
+    S = A["statutory_housing_cost"]
+    fixed = sum(S[k]["value"] for k in ("fire_casualty_insurance", "maintenance_repairs", "utilities_allowance",
+                                        "hoa_fees", "loan_insurance", "space_rent"))
+    tax = S["property_tax_rate"]["value"]
+    bp = builder.budget_price_same_costs(90_000, 0.30, 0.0718, fixed, tax)
+    assert bp["price"] == pytest.approx(221_037, abs=1)
+    # same answer as family_price when its "other costs" include the solved property tax
+    fp = finance.family_price(90_000, 0.0718, 0.30, fixed + bp["monthly_property_tax"])
+    assert fp["price"] == pytest.approx(bp["price"], rel=1e-9)
+    sp = finance.statutory_price(90_000, 4, 3, contracts.load_income_limits(), 0.0718, fixed, tax)
+    assert sp["price"] == pytest.approx(153_751, abs=1)
+
+
+def test_hazard_rows_keep_unknown_visible():
+    rows = builder.hazards(BLANK)
+    assert {r["result"] for r in rows} == {"unknown"}
+    assert any("fault" in r["test"] for r in rows)
+
+
+def test_one_pager_is_sourced_and_honest():
+    srcs = contracts.load_sources()
+    s = contracts.load_sites()[0]
+    ev = pathways.evaluate(s)
+    g = finance.gap({"land": 100.0}, {"family_price": None})
+    doc = builder.one_pager(s, ev, builder.readiness(s, 9), area.score(None), None,
+                            {"basis_label": "Statutory benchmark", "basis_sources": ["hcd_income_2026"], "price": None,
+                             "price_note": "above moderate", "other_sources": 0, "cost_total": 100, "gap": g,
+                             "homes_per_1m": None}, srcs, "2026-11-07")
+    md = builder.one_pager_md(doc, srcs)
+    assert "ASSUMPTION" in md and "None" not in md and "incomplete" in md
+    assert all(i in srcs for i in doc["cited"])
+    assert "scag_he_sites" in doc["cited"]
+    assert "<h1>" in builder.one_pager_html(doc, srcs)
+
+
+def test_synthetic_sample_still_works_and_says_synthetic():
+    srcs = contracts.load_sources()
+    fc = contracts._load("sites.sample.geojson")
+    sample = [{**f["properties"], "lat": None, "lon": None} for f in fc["features"]]  # no coordinates at all
+    rows = builder.rank([_row(s) for s in sample])["rows"]
+    assert len(rows) == len(sample)
+    s = next(x for x in sample if x.get("synthetic"))
+    g = finance.gap({"land": 1.0}, {"family_price": 0.0})
+    doc = builder.one_pager(s, pathways.evaluate(s), builder.readiness(s, 9), area.score(None), None,
+                            {"basis_label": "x", "price": 0.0, "other_sources": 0, "cost_total": 1, "gap": g,
+                             "homes_per_1m": None}, srcs, "2026-11-07")
+    assert "SYNTHETIC" in builder.one_pager_md(doc, srcs)
+
+
+def test_missing_label_is_plain_words():
+    assert builder.missing_label(finance.gap({"land": None}, {"family_price": None})) == "land, family price"
