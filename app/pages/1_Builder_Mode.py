@@ -479,13 +479,13 @@ def card_body(sid: str):
                 ui.unknown(f"Statutory price: {sp['reason']}")
             for note in sp.get("notes") or []:
                 st.caption(f"Note: {note}")
-            g1, g2, g3 = st.columns(3)
-            g1.metric("Gap per home" if not g["complete"] or g["gap"] >= 0 else "Surplus per home",
-                      gap_text(g).replace(" surplus", ""))
             homes = s.get("est_homes")
-            g2.metric(f"Gap, all {homes or '?'} homes", ui.money(g["gap"] * homes) if g["complete"] and homes else "unknown",
-                      help="Same gap for every home: ASSUMPTION")
-            g3.metric("Homes per $1M of gap", f"{fpm:.1f}" if fpm else ("no gap" if g["complete"] else "unknown"))
+            # ui.stats wraps instead of cutting text off ("incomplete" was shown as "incompl..." in st.metric columns)
+            ui.stats([("Gap / home · ASSUMPTION" if not g["complete"] or g["gap"] >= 0 else "Surplus / home · ASSUMPTION",
+                       gap_text(g).replace(" surplus", "")),
+                      (f"Gap, all {homes or '?'} homes · same per home",
+                       ui.money(g["gap"] * homes) if g["complete"] and homes else "unknown"),
+                      ("Homes per $1M of gap", f"{fpm:.1f}" if fpm else ("no gap" if g["complete"] else "unknown"))])
             if not g["complete"]:
                 ui.unknown(f"Missing: {builder.missing_label(g)}. The gap can't be totalled.")
                 if builder.new_build_site(s):
