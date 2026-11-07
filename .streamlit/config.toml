@@ -1,6 +1,35 @@
+# Open Ground theme: light only. Design language follows github.com/jaydentrannnn/resumetailor docs/design.md
+# (white page, calm grey tiles, hairline borders, 4px corners, serif titles, mono labels) with a lagoon-teal
+# accent instead of racing green. Teal = selected, progress, focus and map rank. It is never a button fill.
 [theme]
-primaryColor = "#1f6f4a"
 base = "light"
+primaryColor = "#1B6870"
+backgroundColor = "#ffffff"
+secondaryBackgroundColor = "#f6f7f5"
+textColor = "#0b0b0b"
+linkColor = "#1B6870"
+borderColor = "#e2e2df"
+dataframeBorderColor = "#e2e2df"
+dataframeHeaderBackgroundColor = "#f6f7f5"
+showWidgetBorder = true
+baseRadius = "4px"
+buttonRadius = "4px"
+font = "Geist:https://fonts.googleapis.com/css2?family=Geist:wght@300..700&display=swap, sans-serif"
+headingFont = "Fraunces:https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300..600&display=swap, serif"
+codeFont = "Geist Mono:https://fonts.googleapis.com/css2?family=Geist+Mono:wght@400..600&display=swap, monospace"
+headingFontWeights = [380, 450, 500, 600, 600, 600]
+headingFontSizes = ["2.35rem", "1.55rem", "1.2rem", "1rem", "0.95rem", "0.9rem"]
+paddingTop = "2rem"
+# status hues (always paired with a word and a mark shape, never colour alone)
+greenColor = "#2F7A4F"
+redColor = "#B42318"
+orangeColor = "#B0390A"
+grayColor = "#6B6B68"
+chartSequentialColors = ["#CFE6E5", "#A9D4D3", "#8FC3C3", "#6EAEB0", "#4E9A9E", "#357F86", "#1B6870", "#155760", "#114D55", "#0E4449"]
+
+[client]
+# hides the settings menu, so the light theme can't be switched to dark
+toolbarMode = "minimal"
 
 [server]
 headless = true

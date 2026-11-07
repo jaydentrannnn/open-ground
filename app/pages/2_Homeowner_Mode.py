@@ -1,6 +1,6 @@
 """Homeowner mode: can I add a backyard home (ADU), and does it pay back?
 
-OWNER: Builder C. Keep it ONE screen. Kill switch: if it isn't working by 1:30 PM, replace the body
+OWNER: Builder C. Keep it ONE screen. Inputs sit in one grey tile (left), results on the right. Kill switch: if it isn't working by 1:30 PM, replace the body
 with a 'Coming next' panel and spend the time on Builder mode + the demo.
 """
 import pandas as pd
@@ -8,11 +8,9 @@ import streamlit as st
 
 from core import contracts, finance, ui
 
-st.set_page_config(page_title="Homeowner mode · Open Ground", page_icon="🏠", layout="wide")
-st.title("🏠 Homeowner mode")
-st.write("For an Orange County homeowner with space in the backyard: what would a backyard home (ADU) cost, "
-         "and does the rent pay for it?")
-ui.disclaimer()
+ui.header("Open Ground · Homeowner mode", "Can I add a backyard home, and does it pay back?")
+st.caption("For an Orange County homeowner with space in the backyard: what a backyard home (ADU) costs, "
+           "and whether the rent pays for it.")
 
 A = contracts.load_assumptions()["homeowner_adu"]
 RENTS = A["monthly_rent_by_bedrooms"]
@@ -21,8 +19,8 @@ rate_pt = contracts.latest_rate(rates)
 programs = [p for p in contracts.load_programs() if "homeowner" in p["mode"]]
 UNIT_TYPES = {"Studio": 0, "1 bedroom": 1, "2 bedrooms": 2}
 
-c1, c2 = st.columns([1, 2])
-with c1:
+c1, c2 = st.columns([1, 2], gap="medium")
+with c1.container(border=True, key="tile-inputs"):
     st.subheader("1 · Your ADU")
     unit = st.radio("Type", list(UNIT_TYPES), index=1, horizontal=True)
     bedrooms = UNIT_TYPES[unit]

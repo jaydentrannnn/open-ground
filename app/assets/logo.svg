@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="168" height="28" viewBox="0 0 168 28" role="img" aria-label="Open Ground">
+  <rect x="1" y="3" width="22" height="22" rx="4" fill="#1B6870"/>
+  <path d="M6 15.5 12 10l6 5.5" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M5 20h14" stroke="#fff" stroke-width="2" stroke-linecap="round"/>
+  <text x="31" y="20.5" font-family="Fraunces, Georgia, 'Times New Roman', serif" font-size="19" fill="#0b0b0b">Open Ground</text>
+</svg>
