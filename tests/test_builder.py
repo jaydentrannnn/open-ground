@@ -29,7 +29,7 @@ def test_hazard_fail_ranks_below_clear_even_with_more_pluses():
 
 
 def test_faith_proxy_is_a_lead_not_ownership():
-    c = next(c for c in builder.readiness(FLOOD, 9)["checks"] if c["key"] == "faith")
+    c = next(c for c in builder.readiness(FLOOD, 9)["checks"] if c["key"] == "land_lead")
     assert c["result"] == "pass" and "not proof of ownership" in c["text"]
 
 
@@ -105,3 +105,12 @@ def test_synthetic_sample_still_works_and_says_synthetic():
 
 def test_missing_label_is_plain_words():
     assert builder.missing_label(finance.gap({"land": None}, {"family_price": None})) == "land, family price"
+
+
+def test_surplus_notice_and_vacant_land_are_leads():
+    site = {**CLEAR, "id": "s", "owner_type_proxy": "public_surplus", "surplus_notice": True,
+            "raw": {"sla": {"issued": "04-27-2020", "status": "Archive"}, "existing_use": {"label": "Urban Vacant", "vacant": True}}}
+    checks = {c["key"]: c for c in builder.readiness(site, 9)["checks"]}
+    assert checks["land_lead"]["result"] == "pass" and "may be stale" in checks["land_lead"]["text"]
+    assert checks["use"]["result"] == "pass" and checks["use"]["text"] == "vacant land today"
+    assert builder.readiness(BLANK, 9)["checks"][-1]["result"] == "unknown"

@@ -23,8 +23,14 @@ MAP_LIMIT = 150
 HAZ_COLOR = {True: "#1f6f4a", None: "#8a8f8c", False: "#c0392b"}
 
 
-@st.cache_resource(ttl=600, show_spinner="Loading sites…")
-def load():
+def data_stamp() -> tuple:
+    """Modified times of every data file, so a new file from A or C shows on the next rerun (no restart)."""
+    files = [contracts.DATA / "sources.json", *sorted(contracts.PROCESSED.glob("*.json*"))]
+    return tuple((p.name, p.stat().st_mtime) for p in files if p.exists())
+
+
+@st.cache_resource(max_entries=1, show_spinner="Loading sites…")
+def load(stamp: tuple):  # stamp is part of the cache key (no leading underscore)
     """Static data + per-site law checks and area scores (do not mutate the returned objects)."""
     sites = contracts.load_sites()
     tracts = contracts.load_tracts()
@@ -35,7 +41,7 @@ def load():
             contracts.load_sources())
 
 
-sites, tracts, EVALS, AREAS, limits, rates, programs, A, SRC = load()
+sites, tracts, EVALS, AREAS, limits, rates, programs, A, SRC = load(data_stamp())
 rate_pt = contracts.latest_rate(rates)
 fam = A["family"]
 S = A["statutory_housing_cost"]
@@ -51,9 +57,12 @@ if not contracts.using_sample_sites():
     status = he.get("status", "")
     missing_cities = status.split("NOT in layer:")[1].strip() if "NOT in layer:" in status else None
     n_cities = len({s.get("city") for s in sites if s.get("city")})
-    st.caption(f"**Real data:** {len(sites):,} housing-element sites in {n_cities} Orange County jurisdictions "
-               f"(SCAG, checked {he.get('checked', '?')})."
-               + (f" Not in this layer: {missing_cities}." if missing_cities else ""))
+    n_he = sum(1 for s in sites if s.get("housing_element_site"))
+    n_sla = sum(1 for s in sites if s.get("surplus_notice"))
+    st.caption(f"**Real data:** {len(sites):,} Orange County sites in {n_cities} jurisdictions: {n_he:,} on city "
+               f"housing-element inventories (SCAG, checked {he.get('checked', '?')}) and {n_sla:,} with a Surplus "
+               f"Land Act notice (HCD)." + (f" Cities missing from the SCAG inventory layer: {missing_cities}."
+                                            if missing_cities else ""))
 
 # ---------------------------------------------------------------- sidebar
 with st.sidebar:
@@ -187,12 +196,14 @@ for i, (col, r) in enumerate(zip(st.columns(3), rows[:3])):
 
 with st.expander("How we rank (and what we can't rank on yet)"):
     st.markdown(
-        "**Ready to call** sorts sites clear of flood and fire maps first, then by how many of six checks pass, "
+        "**Ready to call** sorts sites clear of flood and fire maps first, then by how many of seven checks pass, "
         "then by Area Benefit Score, then by lower-income homes in the city's plan. **Unknown never counts as a pass.**\n\n"
         "1. Clear of FEMA flood zones · 2. Clear of very-high fire zones · 3. Near frequent transit · "
         "4. City planned lower-income homes here · 5. Fits your max homes (ASSUMPTION) · "
-        "6. Place of worship mapped here (SB 4 lead, never proof of ownership)")
-    ui.source_line(["oc_floodplains", *builder.FIRE_SOURCES, "caltrans_hqta", "scag_he_sites", "osm_worship"])
+        "6. Land lead: place of worship mapped here (SB 4, never proof of ownership) or a Surplus Land Act notice · "
+        "7. Vacant land or a parking lot today")
+    ui.source_line(["oc_floodplains", *builder.FIRE_SOURCES, "caltrans_hqta", "scag_he_sites", "osm_worship",
+                    "hcd_sla_notices", "scag_landuse"])
     st.caption("Homes per $1M of gap can't separate sites yet: no site has its own land cost, so all use the same "
                "SYNTHETIC cost lines. It will rank on its own once real per-site costs land.")
 
@@ -324,8 +335,14 @@ with q3.container(border=True):
     if cap.get("Total") is not None:
         st.markdown(f"The city counted **{int(cap['Total'])} homes** here: {int(cap.get('Low_Income') or 0)} lower-income · "
                     f"{int(cap.get('Moderate_Income') or 0)} moderate · {int(cap.get('Above_Moderate_Income') or 0)} above-moderate")
-    st.markdown(f"Near frequent transit: {ui.yes_no(s.get('in_hqta'))}")
-    ui.source_line(["scag_he_sites", "caltrans_hqta"])
+    eu = builder.existing_use(s)
+    sla = builder.surplus_notice(s)
+    if s.get("surplus_notice"):
+        st.markdown("Surplus Land Act notice: " + " · ".join(f"{k} **{sla[k]}**" for k in ("agency", "issued", "status")
+                                                             if sla.get(k)))
+    st.markdown(f"Near frequent transit: {ui.yes_no(s.get('in_hqta'))} · In use today: "
+                + (f"**{eu['label']}**" if eu.get("label") else ui.yes_no(None)))
+    ui.source_line(["scag_he_sites", "hcd_sla_notices", "caltrans_hqta", "scag_landuse"])
 
 with q4.container(border=True):
     st.markdown(f"### 💵 Does it pencil? {ui.chip('unknown', 'incomplete') if not g['complete'] else ''}")

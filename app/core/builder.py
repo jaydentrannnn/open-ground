@@ -13,7 +13,7 @@ PASS, FAIL, UNKNOWN = pathways.PASS, pathways.FAIL, pathways.UNKNOWN
 FLOOD_SOURCES = ["oc_floodplains"]
 FIRE_SOURCES = ["calfire_fhsz_lra_2025", "oc_fhsz_lra", "calfire_fhsz_sra_2007"]
 SORTS = ("Ready to call", "Area benefit", "Homes per $1M of gap")
-N_CHECKS = 6
+N_CHECKS = 7
 
 
 def money(x) -> str:
@@ -45,9 +45,51 @@ def he_capacity(site: dict) -> dict:
     return ((site.get("raw") or {}).get("he_capacity") or {})
 
 
+def existing_use(site: dict) -> dict:
+    """SCAG 2024 existing land use joined by A: {label, vacant, parking, under_construction, religious} or {}."""
+    return ((site.get("raw") or {}).get("existing_use") or {})
+
+
+def surplus_notice(site: dict) -> dict:
+    """HCD Surplus Land Act notice details joined by A (agency, issued, status, ...) or {}."""
+    return ((site.get("raw") or {}).get("sla") or {})
+
+
+def _land_lead(site: dict, owner) -> dict:
+    """SB 4 faith-land proxy or a Surplus Land Act notice: a reason to call, never proof of ownership."""
+    sla = surplus_notice(site)
+    if owner == "faith_proxy" or existing_use(site).get("religious"):
+        return {"key": "land_lead", "kind": "plus", "result": PASS, "sources": ["osm_worship", "scag_landuse"],
+                "text": "a place of worship is mapped here (SB 4 lead, not proof of ownership)"}
+    if site.get("surplus_notice"):
+        when = f", issued {sla['issued']}" if sla.get("issued") else ""
+        status = f", status {sla['status']}: may be stale, ask the agency" if sla.get("status") else ""
+        return {"key": "land_lead", "kind": "plus", "result": PASS, "sources": ["hcd_sla_notices"],
+                "text": f"a public agency posted a Surplus Land Act notice{when}{status}"}
+    if owner is None:
+        return {"key": "land_lead", "kind": "plus", "result": UNKNOWN, "sources": ["osm_worship"], "text": "owner"}
+    return {"key": "land_lead", "kind": "plus", "result": FAIL, "sources": ["osm_worship"],
+            "text": f"owner type is {owner}"}
+
+
+def _current_use(site: dict) -> dict:
+    """Vacant land or a parking lot today is easier to build on (SCAG 2024 existing land use)."""
+    eu = existing_use(site)
+    base = {"key": "use", "kind": "plus", "sources": ["scag_landuse"]}
+    if not eu or not eu.get("label"):
+        return {**base, "result": UNKNOWN, "text": "current use"}
+    if eu.get("under_construction"):
+        return {**base, "result": FAIL, "text": "under construction today (the listing may be stale)"}
+    if eu.get("vacant"):
+        return {**base, "result": PASS, "text": "vacant land today"}
+    if eu.get("parking"):
+        return {**base, "result": PASS, "text": "a parking lot today"}
+    return {**base, "result": FAIL, "text": f"in use today as {eu['label'].lower()}"}
+
+
 # ---------------------------------------------------------------------------- readiness
 def readiness(site: dict, max_homes: int) -> dict:
-    """Six checks from sourced site fields. Hazards can rule a site down; the rest are pluses.
+    """Seven checks from sourced site fields. Hazards can rule a site down; the rest are pluses.
 
     Each check: {key, kind: hazard|plus, result: pass|fail|unknown, text, sources}.
     `text` is the phrase used in the one-sentence why.
@@ -73,14 +115,12 @@ def readiness(site: dict, max_homes: int) -> dict:
          "text": {PASS: f"{homes} home{'s' if homes != 1 else ''} fits your cap of {max_homes}",
                   FAIL: f"{homes} homes is over your cap of {max_homes}", UNKNOWN: "number of homes"},
          "sources": ["scag_he_sites"], "assumption": "max homes per site (assumptions.json site_rules)"},
-        {"key": "faith", "kind": "plus",
-         "result": PASS if owner == "faith_proxy" else (UNKNOWN if owner is None else FAIL),
-         "text": {PASS: "a place of worship is mapped here (SB 4 lead, not proof of ownership)",
-                  FAIL: f"owner type is {owner}", UNKNOWN: "owner"},
-         "sources": ["osm_worship"]},
+        _land_lead(site, owner),
+        _current_use(site),
     ]
     for c in checks:
-        c["text"] = c["text"][c["result"]]
+        if isinstance(c["text"], dict):
+            c["text"] = c["text"][c["result"]]
     hazards = [c["result"] for c in checks if c["kind"] == "hazard"]
     hazard_clear = False if FAIL in hazards else (None if UNKNOWN in hazards else True)
     passed = sum(c["result"] == PASS for c in checks)
@@ -225,6 +265,13 @@ def one_pager(site: dict, ev: dict, ready: dict, area_sc: dict, tract: dict | No
             + cite("scag_he_sites"))
     else:
         site_lines.append(f"Homes: {s.get('est_homes') if s.get('est_homes') is not None else 'unknown'}" + cite("scag_he_sites"))
+    eu = existing_use(s)
+    if eu.get("label"):
+        site_lines.append(f"In use today: {eu['label']} (SCAG {eu.get('year') or ''} existing land use)" + cite("scag_landuse"))
+    sla = surplus_notice(s)
+    if s.get("surplus_notice"):
+        site_lines.append("Surplus Land Act notice: " + " · ".join(
+            f"{k} {sla[k]}" for k in ("agency", "issued", "status") if sla.get(k)) + cite("hcd_sla_notices"))
     if s.get("synthetic"):
         site_lines.insert(0, "SYNTHETIC SITE FOR TESTING. NOT A REAL PARCEL.")
 
