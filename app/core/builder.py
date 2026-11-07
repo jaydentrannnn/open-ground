@@ -6,6 +6,7 @@ Rules: unknown is never counted as a pass, every check names its source id, made
 from __future__ import annotations
 
 import html
+import math
 
 from core import finance, pathways
 
@@ -19,10 +20,10 @@ N_CHECKS = 7
 LAND_SIGNALS = ("HE", "SLA")
 LAW_PATHWAYS = tuple(pid for pid in pathways.PATHWAYS if pid not in LAND_SIGNALS)  # new laws join automatically
 LAW_NAMES = "; ".join(pathways.PATHWAYS[pid][0] for pid in LAW_PATHWAYS)
-# ASSUMPTION (team choice, no source): a hazard overlap under this share of the parcel is shown as
-# "edge: check the map" instead of ruling the site down. A small overlap may be a mapping sliver (see pathways).
-# Must equal pipeline/common.py SLIVER_PCT (team decision 2026-11-07: 1%), so the ranking, the Hazards tab and
-# the law checks never disagree about the same parcel.
+# ASSUMPTION (team choice): must equal pipeline/common.py SLIVER_PCT (team decision 2026-11-07: 1%). When every
+# overlap with a hazard layer covers under this share of the parcel, build_sites sets the flag to null and records
+# raw.edge_sliver; the ranking reads that flag, so the ranking, the Hazards tab and the law checks never disagree
+# about the same parcel. Shown in "How we rank".
 EDGE_PCT = 1.0
 # ASSUMPTION: an existing single-family home where the city plans this many homes or fewer is someone's house
 # with room for an ADU or lot split, not a site a nonprofit would buy. Hidden by a sidebar filter.
@@ -113,17 +114,112 @@ def _current_use(site: dict) -> dict:
     return {**base, "result": FAIL, "text": f"in use today as {eu['label'].lower()}"}
 
 
-def _hazard(site: dict, key: str, flag: str, raw_key: str, name: str, sources: list[str], text: dict) -> dict:
-    """A hazard check. An overlap smaller than EDGE_PCT of the parcel becomes 'edge: check the map' (unknown),
-    so a mapping sliver does not sink a site. A point-only site (no share) that hits stays a fail."""
+def _hazard(site: dict, key: str, flag: str, raw_key: str, sliver_key: str, name: str, sources: list[str],
+            text: dict) -> dict:
+    """A hazard check. When the pipeline marked the overlap an edge sliver (raw.edge_sliver, see EDGE_PCT), the flag
+    is null and this becomes 'touches the edge: check the map' (unknown): it ranks with clear sites, one point lower,
+    instead of reading as 'not checked'. Any other overlap stays a fail."""
+    raw = site.get("raw") or {}
     v = site.get(flag)
-    if v:
-        shares = [x.get("pct_of_site") for x in ((site.get("raw") or {}).get(raw_key) or [])]
-        known = [s for s in shares if s is not None]
-        if known and max(known) < EDGE_PCT:
-            return {"key": key, "kind": "hazard", "result": UNKNOWN, "edge": True, "sources": sources,
-                    "text": f"touches the edge of a {name} ({max(known):g}% of the parcel): check the map"}
+    if v is None and (raw.get("edge_sliver") or {}).get(sliver_key):
+        known = [x.get("pct_of_site") for x in raw.get(raw_key) or [] if x.get("pct_of_site") is not None]
+        share = f" ({max(known):g}% of the parcel)" if known else ""
+        return {"key": key, "kind": "hazard", "result": UNKNOWN, "edge": True, "sources": sources,
+                "text": f"touches the edge of a {name}{share}: check the map"}
     return {"key": key, "kind": "hazard", "result": _neg(v), "text": text, "sources": sources}
+
+
+# ---------------------------------------------------------------------------- neighbours (one call, not two)
+# ASSUMPTION (team choice): listed sites closer than this are probably one call (same owner or one assemblage).
+NEIGHBOUR_M = 100.0
+
+
+def distance_m(a: dict, b: dict) -> float | None:
+    """Great-circle distance in metres between two sites' points. None if either has no coordinates."""
+    if None in (a.get("lat"), a.get("lon"), b.get("lat"), b.get("lon")):
+        return None
+    la1, lo1, la2, lo2 = map(math.radians, (a["lat"], a["lon"], b["lat"], b["lon"]))
+    h = math.sin((la2 - la1) / 2) ** 2 + math.cos(la1) * math.cos(la2) * math.sin((lo2 - lo1) / 2) ** 2
+    return 6_371_000 * 2 * math.asin(math.sqrt(h))
+
+
+def neighbours(row: dict, rows: list[dict], metres: float = NEIGHBOUR_M) -> list[tuple[dict, float]]:
+    """Other listed rows within `metres` of this row's site, nearest first. No coordinates = no neighbours."""
+    out = []
+    for other in rows:
+        if other["id"] == row["id"]:
+            continue
+        d = distance_m(row["site"], other["site"])
+        if d is not None and d < metres:
+            out.append((other, d))
+    return sorted(out, key=lambda x: x[1])
+
+
+def call_first(rows: list[dict], n: int = 3, metres: float = NEIGHBOUR_M) -> list[dict]:
+    """The top n DISTINCT calls from ranked rows: a site within `metres` of an earlier pick folds into that pick.
+    Returns [{"row", "neighbours": [(row, metres)]}]."""
+    picks = []
+    for r in rows:
+        if any((d := distance_m(r["site"], p["row"]["site"])) is not None and d < metres for p in picks):
+            continue
+        picks.append({"row": r, "neighbours": neighbours(r, rows, metres)})
+        if len(picks) == n:
+            break
+    return picks
+
+
+def neighbours_line(nbrs: list[tuple[dict, float]], limit: int = 3) -> str | None:
+    """'Also listed nearby: APN 098-120-40 (19 m, 4 homes), … likely one call.' or None."""
+    if not nbrs:
+        return None
+    bits = [f"APN {o['site'].get('apn') or 'unknown'} ({d:.0f} m, "
+            f"{o['site'].get('est_homes') if o['site'].get('est_homes') is not None else 'unknown'} homes)"
+            for o, d in nbrs[:limit]]
+    more = f" and {len(nbrs) - limit} more" if len(nbrs) > limit else ""
+    return "Also listed nearby: " + ", ".join(bits) + more + ": likely one call."
+
+
+# ---------------------------------------------------------------------------- new build vs existing building
+# The synthetic deal buys an EXISTING building: repairs, and rent from that building while waiting. On vacant land or
+# a parking lot those two lines don't apply as written, so they become unknown (the user types real numbers).
+NEW_BUILD_UNKNOWN_COSTS = ("construction_and_repairs",)
+NEW_BUILD_UNKNOWN_OTHER = ("rent_earned_while_waiting",)
+NEW_BUILD_REASON = ("Vacant land or a parking lot today. Our cost lines assume buying an existing building: the "
+                    "new-construction cost is unknown (type a quote), and there is no building to rent while waiting.")
+
+
+def new_build_site(site: dict) -> bool:
+    eu = existing_use(site)
+    return bool(eu.get("vacant") or eu.get("parking"))
+
+
+def adjust_for_site(costs: dict, other: dict, site: dict) -> tuple[dict, dict]:
+    """Copies of the per-home cost and other-source lines, with lines that don't fit this site set to None."""
+    costs, other = dict(costs), dict(other)
+    if new_build_site(site):
+        for k in NEW_BUILD_UNKNOWN_COSTS:
+            if k in costs:
+                costs[k] = None
+        for k in NEW_BUILD_UNKNOWN_OTHER:
+            if k in other:
+                other[k] = None
+    return costs, other
+
+
+# ---------------------------------------------------------------------------- density sanity check
+# ASSUMPTION (team choice): above this many homes per acre, the city's count probably covers several parcels.
+DENSITY_WATCH = 150.0
+
+
+def density_note(site: dict) -> str | None:
+    homes, acres = site.get("est_homes"), site.get("acres")
+    if not homes or not acres:
+        return None
+    per_acre = homes / acres
+    if per_acre <= DENSITY_WATCH:
+        return None
+    return (f"the city counts {homes} homes on {acres:g} acres (about {per_acre:,.0f} per acre): "
+            "its count may cover several parcels")
 
 
 # ---------------------------------------------------------------------------- readiness
@@ -137,9 +233,9 @@ def readiness(site: dict, max_homes: int) -> dict:
     homes = site.get("est_homes")
     owner = site.get("owner_type_proxy")
     checks = [
-        _hazard(site, "flood", "in_flood_zone", "flood_sfha", "FEMA flood zone", FLOOD_SOURCES,
+        _hazard(site, "flood", "in_flood_zone", "flood_sfha", "flood_sfha", "FEMA flood zone", FLOOD_SOURCES,
                 {PASS: "clear of FEMA flood zones", FAIL: "in a FEMA flood zone", UNKNOWN: "flood zone"}),
-        _hazard(site, "fire", "in_fire_zone", "fire_very_high", "very-high fire zone", FIRE_SOURCES,
+        _hazard(site, "fire", "in_fire_zone", "fire_very_high", "fire", "very-high fire zone", FIRE_SOURCES,
                 {PASS: "clear of very-high fire zones", FAIL: "in a very-high fire zone", UNKNOWN: "fire zone"}),
         {"key": "transit", "kind": "plus", "result": _pos(site.get("in_hqta")),
          "text": {PASS: "near frequent transit", FAIL: "not in a transit area", UNKNOWN: "transit area"},
@@ -167,12 +263,12 @@ def readiness(site: dict, max_homes: int) -> dict:
     passed = sum(c["result"] == PASS for c in checks)
     unknowns = [c["text"] for c in checks if c["result"] == UNKNOWN]
     return {"checks": checks, "passed": passed, "hazard_clear": hazard_clear, "hazard_tier": hazard_tier,
-            "unknowns": unknowns, "why": why_sentence(checks)}
+            "unknowns": unknowns, "why": why_sentence(checks, [n for n in [density_note(site)] if n])}
 
 
-def why_sentence(checks: list[dict]) -> str:
+def why_sentence(checks: list[dict], watch: list[str] | None = None) -> str:
     good = [c["text"] for c in checks if c["result"] == PASS]
-    bad = [c["text"] for c in checks if c["kind"] == "hazard" and (c["result"] == FAIL or c.get("edge"))]
+    bad = [c["text"] for c in checks if c["kind"] == "hazard" and (c["result"] == FAIL or c.get("edge"))] + (watch or [])
     unk = [c["text"] for c in checks if c["result"] == UNKNOWN and not c.get("edge")]
     hazard_pass = [c for c in checks if c["kind"] == "hazard" and c["result"] == PASS]
     if len(hazard_pass) == 2:  # shorter: merge the two hazard passes
@@ -366,6 +462,8 @@ def one_pager(site: dict, ev: dict, ready: dict, area_sc: dict, tract: dict | No
             unknown_lines.append(item)
     if money_ctx.get("price") is None:
         unknown_lines.append("Family price (" + (money_ctx.get("price_note") or "unknown") + ")")
+    if new_build_site(s):
+        unknown_lines.append(NEW_BUILD_REASON)
     unknown_lines += ["Who owns it and whether they would sell or lease (not in free parcel data)",
                       "Whether it has sold or been built since the inventory (lists go stale)",
                       "Real land, construction and fee costs (the gap above uses ASSUMPTION lines)"]

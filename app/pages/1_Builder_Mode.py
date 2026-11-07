@@ -163,15 +163,30 @@ else:
 basis_short = "statutory price" if statutory else "household budget"
 cost_defaults = {k: v["value"] for k, v in A["cost_per_home_defaults"].items() if isinstance(v, dict)}
 other_defaults = {k: v["value"] for k, v in A["other_sources_per_home_defaults"].items()}
-other_total = sum(v for v in other_defaults.values() if v is not None)
 
 
 def site_costs(site: dict) -> dict:
-    """Defaults = synthetic worked example. Only a SOURCED per-site land cost overrides the land line."""
+    """Defaults = synthetic worked example. Only a SOURCED per-site land cost overrides the land line.
+    Vacant or parking sites: lines that assume an existing building become unknown (builder.adjust_for_site)."""
     c = dict(cost_defaults)
     if site.get("land_cost_per_home") is not None:
         c["land_and_building_purchase"] = site["land_cost_per_home"]
-    return c
+    return builder.adjust_for_site(c, other_defaults, site)[0]
+
+
+def site_other(site: dict) -> dict:
+    """Other sources per home (subsidy, rent while waiting), adjusted for this site like site_costs()."""
+    return builder.adjust_for_site(cost_defaults, other_defaults, site)[1]
+
+
+def effective_other(site: dict) -> dict:
+    """site_other() plus the user's edits for this site, stored like effective_costs() under 'other:<line>'."""
+    mine = ss["edits"].get(site["id"], {})
+    return {k: mine.get(f"other:{k}", v) for k, v in site_other(site).items()}
+
+
+def known_total(d: dict) -> float:
+    return sum(v for v in d.values() if v is not None)
 
 
 def effective_costs(site: dict) -> dict:
@@ -208,7 +223,7 @@ for s in sites:
     ready = builder.readiness(s, max_homes)
     if hide_hazard and ready["hazard_clear"] is False:
         continue
-    g = finance.gap(effective_costs(s), {"family_price": price, **other_defaults})
+    g = finance.gap(effective_costs(s), {"family_price": price, **effective_other(s)})
     rows.append({"id": s["id"], "site": s, "ev": ev, "best": best, "ready": ready, "gap": g,
                  "area_score": AREAS[s["id"]]["score"], "lower_income": builder.lower_income_homes(s),
                  "homes_per_1m": finance.families_per_million(g["gap"]) if g["complete"] else None})
@@ -240,9 +255,13 @@ def close_card():
 
 
 # ---------------------------------------------------------------- call these 3 first
-for i, (col, r) in enumerate(zip(st.columns(3), rows[:3])):
+picks = builder.call_first(rows)  # nearby listed sites (within NEIGHBOUR_M) fold into one call
+call_no = {p["row"]["id"]: i + 1 for i, p in enumerate(picks)}
+for i, (col, pick) in enumerate(zip(st.columns(3), picks)):
+    r = pick["row"]
     s = r["site"]
     li = r["lower_income"]
+    new_build_gap = not r["gap"]["complete"] and builder.new_build_site(s)
     with col.container(border=True, key=f"tile-top-{i}"):
         ui.eyebrow(f"Call first · #{i + 1}")
         st.markdown(f"**{s['name']}**")
@@ -251,6 +270,11 @@ for i, (col, r) in enumerate(zip(st.columns(3), rows[:3])):
                   ("Gap / home · ASSUMPTION", gap_text(r["gap"]))])
         st.caption(f"{li if li is not None else 'Unknown'} lower-income homes in the city's plan · "
                    f"{HAZARD_WORD[r['ready']['hazard_clear']]}")
+        if new_build_gap:
+            st.caption("Gap incomplete: vacant or parking today, so the new-build cost is unknown.")
+        nb = builder.neighbours_line(pick["neighbours"])
+        if nb:
+            st.caption(f"📍 {nb}")
         st.button("Open site card", key=f"open-{r['id']}", on_click=open_card, args=(r["id"],), width="stretch")
 
 # ---------------------------------------------------------------- map (left) + shortlist (right)
@@ -275,16 +299,17 @@ with left:
     if focus and focus["site"].get("lat") is not None:
         folium.CircleMarker([focus["site"]["lat"], focus["site"]["lon"]], radius=16, color="#0E4449", weight=3,
                             fill=False, dash_array="5", tooltip=f"Last opened: {focus['site']['name']}").add_to(m)
-    for n, r in sorted(shown, key=lambda x: -x[0]):  # best last, so the top ranks sit on top
+    for n, r in sorted(shown, key=lambda x: (x[1]["id"] in call_no, -x[0])):  # calls last, so they sit on top
         s = r["site"]
-        tip = (f"#{n + 1} {s['name']} · {r['ready']['passed']}/{builder.N_CHECKS} checks · "
-               f"{HAZARD_WORD[r['ready']['hazard_clear']]}")
-        if n < 3:
+        k = call_no.get(r["id"])
+        tip = (f"{'Call ' + str(k) + ' · ' if k else ''}#{n + 1} {s['name']} · {r['ready']['passed']}/"
+               f"{builder.N_CHECKS} checks · {HAZARD_WORD[r['ready']['hazard_clear']]}")
+        if k:
             folium.Marker([s["lat"], s["lon"]], tooltip=tip, popup=s["name"], icon=folium.DivIcon(
                 icon_size=(26, 26), icon_anchor=(13, 13),
                 html=f"<div style='background:{ui.RANK_RAMP[0]};color:#fff;border:2px solid #fff;border-radius:50%;"
                      f"width:26px;height:26px;line-height:22px;text-align:center;font:600 12px Geist,sans-serif;"
-                     f"box-shadow:0 0 0 1px #0E4449'>{n + 1}</div>")).add_to(m)
+                     f"box-shadow:0 0 0 1px #0E4449'>{k}</div>")).add_to(m)
         else:
             folium.CircleMarker([s["lat"], s["lon"]], radius=6, color="#0E4449", weight=1, fill=True,
                                 fill_color=ui.rank_color(n, total), fill_opacity=0.95,
@@ -343,7 +368,9 @@ def card_body(sid: str):
     r = by_id[sid]
     s, ev, rd = r["site"], r["ev"], r["ready"]
     cost = effective_costs(s)
-    g = finance.gap(cost, {"family_price": price, **other_defaults})
+    other = effective_other(s)
+    other_total = known_total(other)
+    g = finance.gap(cost, {"family_price": price, **other})
     fpm = finance.families_per_million(g["gap"]) if g["complete"] else None
 
     info, side = st.columns([1.35, 1], gap="medium")
@@ -357,6 +384,9 @@ def card_body(sid: str):
                   ("Homes", s.get("est_homes") if s.get("est_homes") is not None else "unknown"),
                   ("Gap / home", gap_text(g))])
         st.markdown(f"**Why call:** {rd['why']}")
+        card_nb = builder.neighbours_line(builder.neighbours(r, rows))
+        if card_nb:
+            st.caption(f"📍 {card_nb}")
         if s.get("synthetic"):
             st.error("SYNTHETIC site for testing. Not a real parcel.")
         if (s.get("est_homes") or 0) > max_homes:
@@ -451,9 +481,12 @@ def card_body(sid: str):
             g3.metric("Homes per $1M of gap", f"{fpm:.1f}" if fpm else ("no gap" if g["complete"] else "unknown"))
             if not g["complete"]:
                 ui.unknown(f"Missing: {builder.missing_label(g)}. The gap can't be totalled.")
+                if builder.new_build_site(s):
+                    st.caption(builder.NEW_BUILD_REASON + " Type real numbers under *Edit the cost lines*.")
             st.markdown(f"Cost to create {ui.money(sum(v for v in cost.values() if v is not None))}"
                         f"{' (incomplete)' if any(v is None for v in cost.values()) else ''} − family "
-                        f"{ui.money(price)} − other sources {ui.money(other_total)}, per home")
+                        f"{ui.money(price)} − other sources {ui.money(other_total)}"
+                        f"{' (incomplete)' if any(v is None for v in other.values()) else ''}, per home")
             ui.assumption("Cost lines and other sources are copied from the event's SYNTHETIC worked example: the same for "
                           f"every site until a real per-site cost exists. Housing-cost items per 25 CCR 6920 (Cornell LII "
                           f"copy, read 2026-11-07): {ui.money(fixed)}/mo + {tax_rate:.1%}/yr property tax, all placeholders.")
@@ -465,10 +498,16 @@ def card_body(sid: str):
                     cc[i % 2].number_input(k.replace("_", " "), 0, 2_000_000, None if cost[k] is None else int(cost[k]),
                                            5000, key=f"w-{sid}-{k}", placeholder="unknown: type a number",
                                            on_change=save_edit, args=(sid, k))
+                st.caption("Other sources, per home (subsidy, rent while waiting)")
+                oc = st.columns(2)
+                for i, k in enumerate(site_other(s)):
+                    oc[i % 2].number_input(k.replace("_", " "), 0, 2_000_000, None if other[k] is None else int(other[k]),
+                                           5000, key=f"w-{sid}-other:{k}", placeholder="unknown: type a number",
+                                           on_change=save_edit, args=(sid, f"other:{k}"))
             with st.expander(f"If the rate moves ({basis_short})"):
                 rlist = [max(rate + d, 0.0) for d in (-0.01, -0.005, 0, 0.005, 0.01)]
-                if any(v is None for v in cost.values()):
-                    ui.unknown("The rate table needs every cost line: fill the unknown ones above.")
+                if any(v is None for v in [*cost.values(), *other.values()]):
+                    ui.unknown("The rate table needs every cost and other-source line: fill the unknown ones above.")
                 else:
                     total_cost = sum(cost.values())
                     sens = (finance.statutory_rate_sensitivity(income, hh, beds, limits, rlist, fixed, tax_rate, total_cost,
@@ -522,6 +561,9 @@ with st.expander("How we rank, and what we can't rank on yet"):
         "7. Vacant land or a parking lot today")
     ui.source_line(["oc_floodplains", *builder.FIRE_SOURCES, "caltrans_hqta", "scag_he_sites", "osm_worship",
                     "hcd_sla_notices", "scag_landuse"])
+    st.caption(f"'Call these 3 first' skips a site within {builder.NEIGHBOUR_M:.0f} m of a higher pick and lists it on "
+               f"that card instead (ASSUMPTION). Above {builder.DENSITY_WATCH:.0f} homes per acre (ASSUMPTION) the reason says "
+               "the city's count may cover several parcels.")
     st.caption("Homes per $1M of gap can't separate sites yet: no site has its own land cost, so all use the same "
                "SYNTHETIC cost lines. It will rank on its own once real per-site costs land.")
 if not contracts.using_sample_sites():
