@@ -274,7 +274,7 @@ for i, (col, pick) in enumerate(zip(st.columns(3), picks)):
             st.caption("Gap incomplete: vacant or parking today, so the new-build cost is unknown.")
         nb = builder.neighbours_line(pick["neighbours"])
         if nb:
-            st.caption(f"📍 {nb}")
+            st.caption(f":material/location_on: {nb}")
         st.button("Open site card", key=f"open-{r['id']}", on_click=open_card, args=(r["id"],), width="stretch")
 
 # ---------------------------------------------------------------- map (left) + shortlist (right)
@@ -386,7 +386,7 @@ def card_body(sid: str):
         st.markdown(f"**Why call:** {rd['why']}")
         card_nb = builder.neighbours_line(builder.neighbours(r, rows))
         if card_nb:
-            st.caption(f"📍 {card_nb}")
+            st.caption(f":material/location_on: {card_nb}")
         if s.get("synthetic"):
             st.error("SYNTHETIC site for testing. Not a real parcel.")
         if (s.get("est_homes") or 0) > max_homes:

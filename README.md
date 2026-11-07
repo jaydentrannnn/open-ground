@@ -4,7 +4,7 @@
 > would help, and the funding gap per home, with every source on screen.
 
 **Team:** Open Ground
-**Members:** TODO: add names
+**Members:** Jayden Tran (organizer), Qui Pham (builder), Minh Mai (designer)
 **Lane:** 1 Find it (we also cover 3 Fund it)
 **Built at:** Claude Impact Lab: UCI × SoCal Affordable Housing, November 7, 2026
 
