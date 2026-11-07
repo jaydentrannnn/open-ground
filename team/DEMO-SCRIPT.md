@@ -4,31 +4,32 @@ Updated 2026-11-07 for the top-bar / pop-up design. Numbers below were read from
 (demo family: $90,000, 4 people, 3 bedrooms, 7.18% rate). **Re-check them after the last feature lands.**
 Homeowner beats are placeholders until the zip code + goal panel work is merged.
 
-## 1. Demo video (79 s, v2, recorded 2026-11-07 ~2:17 PM on the live URL)
+## 1. Demo video (93 s, v3, recorded 2026-11-07 2:14 PM on the live URL)
 
-File: `open-ground-demo-v2.mp4` (1920x1200, H.264 + AAC). Made with Claude: Claude wrote the script, drove the live app
+File: `open-ground-demo-v3.mp4` (1920x1200, H.264 + AAC). Made with Claude: Claude wrote the script, drove the live app
 with Playwright (Chrome screencast, fake cursor, captions, feature chips, title cards), voiced it with Microsoft's
-"Emma" neural text-to-speech voice (edge-tts, 12% faster) and synthesized the music bed in code (no third-party
-music). ffmpeg joined picture, voice and music. The submission page asks for "one user, one problem, the tool working,
-the result": the real user and their problem open Part 1, the end card names the data sources. Up to 2 minutes is
+"Emma" neural text-to-speech voice (edge-tts, 14% faster) and synthesized the music bed in code (no third-party
+music), which plays throughout about 11 dB under the voice. ffmpeg joined picture, voice and music. The submission page asks for "one user, one problem, the tool working,
+the result": the real user and their problem open Part 1; the voice also covers the result (a call list with the facts
+behind it), sources and ASSUMPTION labels, and the path to the next county (Scale). Up to 2 minutes is
 allowed; 30 s is "ideal". The MP4 is not in the repo: upload it with the form.
 
 | # | Screen | Caption / voice |
 |---|---|---|
 | T1 | Title card "Part 1 · A nonprofit builder" | "Part one: a nonprofit builder." |
-| 1 | Builder, top of page (chip: the problem) | "Meet the land lead at a small Orange County housing nonprofit. Today, they find land by luck, checking one site at a time across a dozen websites." |
-| 2 | Filter row; type 098-120-39 in the shortlist search | "Open Ground ranks over two thousand real sites from public data. Filter by city, law, or flood and fire risk, or search any parcel." |
-| 3 | The three "Call first" tiles; open card #1 | "It picks three different sites to call first, and tells you why." |
-| 4 | Card #1 (Garden Grove APN 098-120-39): SCAG parcel outline, law list | "Each site card shows the real parcel, and a yes, no, or unknown for every state housing law, with its source." |
-| 5 | "Hazards" tab | "Hazards: flood and fire maps, checked parcel by parcel." |
+| 1 | Builder, top of page (chip: the problem) | "Meet the land lead at a small Orange County housing nonprofit, with no mapping team. Today, they find land by luck, one site at a time, across a dozen websites." |
+| 2 | Filter row; type 098-120-39 in the shortlist search | "Open Ground ranks over two thousand real sites from city housing plans and surplus public land. Filter by city, law, or flood and fire risk, or search any parcel." |
+| 3 | The three "Call first" tiles; open card #1 | "It names three different sites to call first, and says why." |
+| 4 | Card #1 (Garden Grove APN 098-120-39): SCAG parcel outline, law list | "Each site card shows the real parcel, and a yes, no, or unknown for every state housing law. Unknown never counts as a pass." |
+| 5 | "Hazards" tab | "Hazards: flood and fire maps, checked for every parcel." |
 | 6 | "Who it helps" tab (Area Benefit Score 64 / 100, 4 lower-income homes planned) | "Who it helps: an area benefit score from Census data, and the homes the city planned here." |
-| 7 | "Does it pencil?" tab ($153,751 statutory price, $226,249 gap / home on ASSUMPTION costs) | "Does it pencil? From this year's income limits and this week's mortgage rate, it shows what a family can legally pay, and the gap per home." |
-| 8 | "One-pager" tab | "Then one click drafts a sourced one-pager, ready for a congregation or a funder." |
+| 7 | "Does it pencil?" tab ($153,751 statutory price, $226,249 gap / home on ASSUMPTION costs) | "Does it pencil? From this year's state income limits and this week's mortgage rate, it shows what a family can pay, and the gap per home. Placeholder costs are labeled assumption." |
+| 8 | "One-pager" tab | "Then one click drafts a sourced one-pager for a congregation or a funder. Instead of luck, they start the week with a call list and the facts behind it." |
 | T2 | Title card "Part 2 · A homeowner" | "Part two: a homeowner." |
 | 9 | Homeowner: type ZIP 92840; rent becomes the Census median ($1,611 ± $112, 1BR) | "Can a backyard home pay for itself? Type a ZIP code, and the rent comes from the Census median for that area." |
-| 10 | Pick 2 bedrooms: rent becomes the 2BR Census median ($2,099 ± $110); metrics update | "Switch to two bedrooms, and the cost, the rent, and the cash flow all update." |
-| 11 | Years to earn back your cash; "Help that might apply" table | "You see the years to earn your cash back, and the help that might apply, each with its status checked today." |
-| End | End card: sources (SCAG · HCD · FEMA · CAL FIRE · Census · Freddie Mac), prototype disclaimer, repo | "Open Ground. Real public data, every source shown, every guess labeled. Built with Claude." |
+| 10 | Pick 2 bedrooms: rent becomes the 2BR Census median ($2,099 ± $110); metrics update | "Switch to two bedrooms, and the cost, rent and cash flow all update." |
+| 11 | Years to earn back your cash; "Help that might apply" table | "It shows the years to earn your cash back, and the help that might apply, each with its status checked today." |
+| End | End card: who it is for, the real data sources, "every number sourced, every guess labeled ASSUMPTION", next county = re-run the pipeline, disclaimer, repo | "Every number shows its source. The laws are statewide and most data is regional, so a new county is mostly a re-run of the pipeline. Built with Claude. A prototype, not legal or financial advice." |
 
 Do not say a number in the voice that the screen doesn't show. The gap uses the event's SYNTHETIC cost lines: the
 screen labels it ASSUMPTION, so the voice says "placeholder costs".
@@ -83,7 +84,7 @@ Open the live URL before you start and open card #1 once, so the parcel outlines
     existing-house cutoff 2 homes, Area Benefit Score weights, ADU $250/sq ft, 1BR rent $2,598 when no ZIP is given, vacancy and upkeep 25%,
     owner cash $50,000, below-market rate toggle 3.0%.
 - **Public repo URL:** https://github.com/jaydentrannnn/open-ground
-- **Video:** upload `open-ground-demo-v2.mp4` (79 s; see section 1).
+- **Video:** upload `open-ground-demo-v3.mp4` (93 s; see section 1).
 - **Live demo URL:** https://open-ground-sqjmqchnp8w8kc5vegpm8k.streamlit.app/
 - **Company website:** leave blank (the form shows this field; we have none).
 
