@@ -32,10 +32,13 @@ One Streamlit app, two modes (switch in the top bar), same data:
 - **Builder mode:** **2,235 real Orange County sites**: 2,126 on city housing-element inventories (SCAG) and 109
   parcels with a Surplus Land Act notice (HCD). Each is checked against zoning, existing land use, flood, fire,
   earthquake-fault-zone and transit layers, and its census tract. You get:
-  - **"Call these 3 first"**, then a ranked shortlist and a map (rank by readiness, area benefit, or homes per $1M of gap).
+  - **"Call these 3 first"**, then a ranked shortlist with a search box (city, APN, address or zoning) and a map (rank
+    by readiness, area benefit, or homes per $1M of gap). Listed parcels within 100 m of a higher pick fold into that
+    call (ASSUMPTION), so the three tiles are three different calls. Existing houses where the city plans 2 or fewer
+    homes are hidden by default (ASSUMPTION): 2,020 of the 2,235 sites show.
     Map dots get darker with rank; zoom in to see each lot's real parcel outline (SCAG zoning-parcel layer, fetched live
     with no key, one request per batch of sites; if it fails we show a dashed ring, never a made-up boundary)
-  - a **site card** that opens as a pop-up, with a square zoomable map of the lot: can we build (SB 4, SB 9, SB 684 / SB 1123 starter homes and surplus land, each test yes / no /
+  - a **site card** that opens as a pop-up, with a square zoomable map of the lot: can we build (SB 4, SB 9, SB 684 / SB 1123 starter homes, AB 2011 commercial sites and surplus land, each test yes / no /
     unknown with the reason and the fact-sheet page cited),
     hazards, who it helps (tract data and an Area Benefit Score), and does it pencil
   - the **gap per home**, with a rate table and "what a gift closes"
@@ -146,6 +149,7 @@ event's synthetic example. Every source is in [`data/sources.json`](data/sources
 | SB 4 (Gov Code 65913.16), faith and college land: HCD fact sheet, April 2026, read in full | [HCD SB 4 fact sheet](https://www.hcd.ca.gov/sites/default/files/docs/planning-and-community/aff-hsg-faith-higher-ed-sb-4.pdf) | 2026-11-07 | VERIFIED | Builder mode site card: every SB 4 test and note, with the page |
 | SB 9 (Gov Code 65852.21, 66411.7), duplexes and lot splits: HCD fact sheet, April 2026, read in full | [HCD SB 9 fact sheet](https://www.hcd.ca.gov/sites/default/files/docs/planning-and-community/lot-splits-and-duplexes-sb-9.pdf) | 2026-11-07 | VERIFIED | Builder mode site card: every SB 9 test and note, with the page |
 | SB 684 / SB 1123, Starter Home Revitalization Act (Gov Code 65852.28, 65913.4.5, 66499.41): HCD combined fact sheets, April 2026, PDF pp.67-68. Up to 10 units | [HCD Housing Law Fact Sheets](https://www.hcd.ca.gov/sites/default/files/docs/planning-and-community/housing-law-fact-sheets.pdf) | 2026-11-07 | VERIFIED | Builder mode site card: SB 684/1123 tests (lot under 5 acres, multifamily zone, incorporated city, fire, displacement) |
+| AB 2011, Affordable Housing and High Road Jobs Act (Gov Code 65912.100-65912.140): HCD combined fact sheets, April 2026, PDF pp.5-6 (industrial rule p.53). The corridor, environmental and vacant-site rules are not spelled out there, so they stay unknown | [HCD Housing Law Fact Sheets](https://www.hcd.ca.gov/sites/default/files/docs/planning-and-community/housing-law-fact-sheets.pdf) | 2026-11-07 | VERIFIED | Builder mode site card: AB 2011 tests and notes (commercial zone, industrial use, corridor rules, city exemption) |
 | Affordable housing cost, ownership: HSC 50052.5(b) and (h), official text. (b)(1)-(4) and (h) checked word for word by Builder C in a browser (leginfo blocks automated fetch) | [leginfo HSC 50052.5](https://leginfo.legislature.ca.gov/faces/codes_displaySection.xhtml?lawCode=HSC&sectionNum=50052.5) | 2026-11-07 | VERIFIED | `finance.statutory_price`: Builder mode's default family price |
 | HSC 50052.5, FindLaw copy ("current as of Jan 1, 2026"). Matches the official text per the browser check | [FindLaw HSC 50052.5](https://codes.findlaw.com/ca/health-and-safety-code/hsc-sect-50052-5/) | 2026-11-07 | VERIFIED | The text `finance.py` was coded from |
 | What counts as an owner's housing cost: 25 CCR 6920 (a)-(g) | [25 CCR 6920 (Cornell LII)](https://www.law.cornell.edu/regulations/california/25-CCR-6920) | 2026-11-07 | VERIFIED | Both family prices; the cost items in `assumptions.json` |
@@ -164,9 +168,9 @@ event's synthetic example. Every source is in [`data/sources.json`](data/sources
 
 | What | Source | Date checked | Status | Where it's used |
 |---|---|---|---|---|
-| 30-year mortgage rate: 104 weekly points, latest 7.18% (week of 2026-11-05). A market average, not a quote | [Freddie Mac PMMS history](https://www.freddiemac.com/pmms/docs/PMMS_history.csv) | 2026-11-07 | VERIFIED | `pipeline/fetch_rates.py` builds `rates.json`. Home page; Builder mode rate and rate table; Homeowner mode loan rate |
+| 30-year mortgage rate: 104 weekly points, latest 7.18% (week of 2026-11-05). A market average, not a quote | [Freddie Mac PMMS history](https://www.freddiemac.com/pmms/docs/PMMS_history.csv) | 2026-11-07 | VERIFIED | `pipeline/fetch_rates.py` builds `rates.json`. Page footer; Builder mode rate and rate table; Homeowner mode loan rate |
 | Housing costs about 30-35% of income | [Lane 3 brief](lanes/3-fund-it/README.md) | 2026-11-07 | VERIFIED | Basis for the 30% household-budget ASSUMPTION |
-| The event's one-home bill. SYNTHETIC: every number is made up | [synthetic-example-deal.json](lanes/3-fund-it/data/synthetic-example-deal.json) | 2026-11-07 | ASSUMPTION | Default cost lines, subsidy and rent-while-waiting in Builder mode; Home page |
+| The event's one-home bill. SYNTHETIC: every number is made up | [synthetic-example-deal.json](lanes/3-fund-it/data/synthetic-example-deal.json) | 2026-11-07 | ASSUMPTION | Default cost lines, subsidy and rent-while-waiting in Builder mode; page footer |
 | CalHome (HCD): CLOSED, next round unknown. Lends to agencies and nonprofits, not individuals | [HCD CalHome](https://www.hcd.ca.gov/grants-and-funding/programs-active/calhome) | 2026-11-07 | VERIFIED | "Who could close the gap" (Builder) and "Help that might apply" (Homeowner), from `programs.json` |
 | CalHFA MyHome Assistance: funds availability not stated | [CalHFA homebuyer programs](https://www.calhfa.ca.gov/homebuyer/programs/) | 2026-11-07 | VERIFIED | Builder mode, "Who could close the gap" |
 | CalHFA Dream For All: CLOSED (portal closed after Mar 16, 2026). Next round unknown | [CalHFA Dream For All](https://calhfa.ca.gov/dream/) | 2026-11-07 | VERIFIED | Builder mode, "Who could close the gap" |
@@ -194,6 +198,10 @@ Every row below is a placeholder. Replace it with a real number and its source. 
 | Cost to create a home: land and building $360,000, time while waiting $85,000, construction $40,000, fees, design, legal and sales $50,000 | [synthetic-example-deal.json](lanes/3-fund-it/data/synthetic-example-deal.json) | 2026-11-07 | ASSUMPTION | Builder mode, "Does it pencil": default cost lines (editable), the same for every site |
 | Public subsidies $100,000 and rent earned while waiting $55,000 per home | [synthetic-example-deal.json](lanes/3-fund-it/data/synthetic-example-deal.json) | 2026-11-07 | ASSUMPTION | Builder mode: "Other sources" in the gap |
 | Max homes per site: 9. The team's demo default, under the 10-unit ceiling of the SB 684 / SB 1123 starter-home pathway (fact sheets pp.67-68). **Not a limit for SB 4**: prevailing wage applies at any size (SB 4 fact sheet p.3) | [assumptions.json](data/processed/assumptions.json) | 2026-11-07 | ASSUMPTION | Builder mode filter default and "too big" warning |
+| Edge-sliver threshold: 1% of the parcel. Parcel lines (SCAG/county) and hazard lines (FEMA, CAL FIRE) are drawn by different agencies, so touching boundaries often overlap by a few feet. When every overlap with a flood, floodway or fire layer is under 1%, the answer is "unknown: check the map", never a pass | [`pipeline/common.py`](pipeline/common.py) `SLIVER_PCT` (the app's `EDGE_PCT` must match; a test checks): no source | 2026-11-07 | ASSUMPTION | Hazard fields, ranking, Hazards tab and law checks (15 slivers on 14 sites) |
+| Same call: a listed parcel within 100 m of a higher-ranked pick is probably the same owner or one assemblage, so it folds into that call | [`app/core/builder.py`](app/core/builder.py) `NEIGHBOUR_M`: no source | 2026-11-07 | ASSUMPTION | Builder mode: "Call these 3 first" tiles and the site card's "Also listed nearby" |
+| Density watch: over 150 homes per acre, the city's count probably covers several parcels. Shown in the reason, not scored | [`app/core/builder.py`](app/core/builder.py) `DENSITY_WATCH`: no source | 2026-11-07 | ASSUMPTION | Builder mode reason line (14 sites) |
+| Existing house: SCAG 2024 land use says a single-family home is there and the city plans 2 or fewer homes, so it is likely someone's house (room for an ADU or lot split), not a site to buy | [`app/core/builder.py`](app/core/builder.py) `SMALL_HOUSE_MAX_HOMES`: no source | 2026-11-07 | ASSUMPTION | Builder mode "More filters", on by default (hides 215 sites) |
 | Area Benefit Score weights (rent burden 0.3, crowding 0.2, eligible households 0.2, low-wage jobs 0.2, opportunity 0.1) and the 0-1 scaling ranges. Our choice | [assumptions.json](data/processed/assumptions.json), [`app/core/area.py`](app/core/area.py): no source | 2026-11-07 | ASSUMPTION | Who it helps; shortlist order |
 | "Eligible households" = households earning under $150k: the nearest ACS income bin to the OC 4-person low-income limit ($148,850). Mixes household sizes | [Census ACS 5-year API](https://api.census.gov/data.html) | 2026-11-07 | ASSUMPTION | Area Benefit Score |
 | ADU cost per sq ft: $250 (survey median; statewide, 2021, not OC; leaves out site-specific and some soft costs) | [Terner Center ADU owner survey](https://ternercenter.berkeley.edu/blog/cci-adu-survey) | 2026-11-07 | ASSUMPTION | Homeowner mode |
@@ -209,10 +217,13 @@ Every row below is a placeholder. Replace it with a real number and its source. 
   Orange), plus 109 parcels from 113 HCD Surplus Land Act notices.
 - **SCAG zoning** on 2,213 sites and **SCAG 2024 existing land use** on 2,215 (155 vacant, 17 parking, 50 religious
   facilities).
-- **Flood, fire, fault-zone and transit checks** on each parcel outline: 196 sites overlap a FEMA special flood
-  hazard area, 17 a floodway, 52 a Very High fire zone on at least one map, 0 an Alquist-Priolo fault zone, 831 a
-  High-Quality Transit Area. The share of the parcel that overlaps is recorded, so a sliver shows as a sliver.
+- **Flood, fire, fault-zone and transit checks** on each parcel outline: 185 sites overlap a FEMA special flood
+  hazard area, 15 a floodway, 50 a Very High fire zone on at least one map, 0 an Alquist-Priolo fault zone, 831 a
+  High-Quality Transit Area. The share of the parcel that overlaps is recorded. 14 sites touch a zone by under 1% of the parcel (15 edge
+  slivers, ASSUMPTION): those show as "unknown: check the map", never as clear.
   Liquefaction, landslide and CalEnviroScreen 5.0 are shown as context, not legal tests.
+- **Spot-audit:** 47 of 47 values on 8 sample sites matched the live public sources, including two independent
+  checks (FEMA's National Flood Hazard Layer and the Census geocoder). See [docs/data-audit.md](docs/data-audit.md).
 - **Tract data:** ACS 2024 5-year and LODES 2024 for 614 OC tracts, plus the TCAC/HCD 2026 opportunity category for
   610; 2,215 sites are linked to a tract.
 - **Income limits** (HCD 2026, June 23 revision, checked against the PDF) and the **mortgage rate** (Freddie Mac PMMS).
@@ -243,6 +254,12 @@ Every row below is a placeholder. Replace it with a real number and its source. 
 
 ## Where it gets things wrong (known gaps)
 
+- **AB 2011 is never a "yes":** the commercial-corridor rule, environmental criteria, limits on vacant sites and any
+  city exemption ordinance are not checkable from our data. The zone test uses SCAG's regional code: confirm the
+  city's use table.
+- **Vacant land and parking lots (172 sites) show the gap as "incomplete":** the synthetic cost lines assume buying
+  an existing building, so new construction and rent while waiting are unknown until someone types real numbers in
+  the site card.
 - **Fault zones are the State's Alquist-Priolo zones.** The SB 4 fact sheet says "earthquake fault zone" without
   defining it. No site overlaps one (nearest about 590 m). Liquefaction and landslide zones are context only.
 - **Surplus notices and SCAG sometimes disagree** on parcel size or existing use (shown side by side, not settled).
