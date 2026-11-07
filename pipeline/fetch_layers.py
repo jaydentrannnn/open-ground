@@ -14,6 +14,12 @@ Layers (fields checked 2026-11-07 by reading each layer's REST metadata):
             FHSZSRA25_3 layer describes itself as a draft under public comment, so it is a lead, not used.
   hqta      Caltrans CA High-Quality Transit Areas (867 polygons in the OC envelope).
   worship   OpenStreetMap amenity=place_of_worship (SB 4 LEAD only: not ownership).
+  fault_ap  CGS Alquist-Priolo Earthquake Fault Zones (California Department of Conservation org). Layer says the
+            zones exist under the Alquist-Priolo Act (PRC 2621-2630). 17 polygons in the OC envelope.
+  CONTEXT ONLY (shown per site, not legal tests):
+  liquefaction  OC copy of CGS liquefaction zones (229 quads; RELEASED/REVISED dates per quad).
+  landslide     CGS Landslide Zones (statewide FeatureServer; ~6,000 polygons in the OC envelope).
+  ces5          CalEnviroScreen 5.0 tract results, published by OEHHA's ArcGIS org -> data/raw/ces5_oc.json
   zoning legend: SCAG Zoning_poly_OR layer metadata -> data/processed/scag_zoning_codes.json
 """
 import json
@@ -31,6 +37,12 @@ LAYERS = {
                  "HAZ_CLASS='Very High'", "HAZ_CLASS,SRA", OC_BBOX),
     "hqta": ("https://caltrans-gis.dot.ca.gov/arcgis/rest/services/CHrailroad/CA_HQ_Transit_Areas/FeatureServer/0",
              "1=1", "hqta_type,agency_primary", OC_BBOX, 100),
+    "fault_ap": ("https://services2.arcgis.com/zr3KAIbsRSUyARHG/arcgis/rest/services/CGS_Alquist_Priolo_Fault_Zones/FeatureServer/0",
+                 "1=1", "QUAD_NAME,ZN_RELEASED,ZN_REVISED", OC_BBOX, 100),
+    "liquefaction": ("https://www.ocgis.com/arcpub/rest/services/Map_Layers/Liquefaction/MapServer/0", "1=1",
+                     "QUAD_NAME,RELEASED,REVISED", None, 25),
+    "landslide": ("https://services2.arcgis.com/zr3KAIbsRSUyARHG/arcgis/rest/services/CGS_Landslide_Zones/FeatureServer/0",
+                  "1=1", "QUAD_NAME,RELEASED,REVISED", OC_BBOX, 100),
 }
 
 for name, (url, where, fields, bbox, *chunk) in LAYERS.items():
@@ -38,7 +50,20 @@ for name, (url, where, fields, bbox, *chunk) in LAYERS.items():
         feats = fetch_all(url, where, fields, bbox, *chunk)
         (RAW / f"layer_{name}.geojson").write_text(json.dumps({"type": "FeatureCollection", "features": feats}))
     except Exception as e:  # a failed layer stays unknown downstream; never guessed
-        print(f"  {name} FAILED (its checks will show 'unknown'; note in README): {e}")
+        print(f"  {name} FAILED (its checks will show 'unknown'; note in README): {str(e)[:200]}")
+
+# CalEnviroScreen 5.0: attributes only, one row per OC tract (tract is numeric: 6059001101 -> "06059001101")
+CES = "https://services1.arcgis.com/PCHfdHz4GlDNAhBb/arcgis/rest/services/calenviroscreen50results_F_070126_gdb/FeatureServer/2"
+try:
+    d = get(f"{CES}/query", {"where": "county='Orange'", "returnGeometry": "false", "f": "json",
+                             "outFields": "tract,CIscore,CIscoreP,Pollution_Pctl,PopCharPctl"})
+    ces = {f"{int(a['tract']):011d}": {"ces5_percentile": a.get("CIscoreP"), "pollution_pctl": a.get("Pollution_Pctl"),
+                                       "pop_char_pctl": a.get("PopCharPctl")}
+           for a in (f["attributes"] for f in d.get("features", [])) if a.get("tract")}
+    (RAW / "ces5_oc.json").write_text(json.dumps(ces))
+    print(f"  CalEnviroScreen 5.0 OC tracts: {len(ces)}")
+except Exception as e:
+    print("  CalEnviroScreen FAILED (context stays unknown):", e)
 
 # SB 4 lead layer: places of worship (Overpass bbox order is south, west, north, east)
 w, s, e, n = OC_BBOX

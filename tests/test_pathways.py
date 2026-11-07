@@ -106,3 +106,42 @@ def test_area_weights_are_tagged_assumption_and_note_matches():
     for key, pct in [("rent_burden_pct", "30%"), ("overcrowded_pct", "20%"), ("eligible_households", "20%"),
                      ("low_wage_jobs", "20%"), ("opportunity_score", "10%")]:
         assert f"{round(w[key] * 100)}%" == pct and pct in area.ASSUMPTION_NOTE
+
+
+def test_shra_multifamily_small_lot_can_pass_zone_and_size():
+    tests = pathways.shra({"acres": 0.5, "zoning_scag": "1120 Multi-Family Residential", "city": "Anaheim"})
+    by = {t["test"].split(" (")[0]: t["result"] for t in tests}
+    assert by["Lot under 5 acres"] == "pass" and by["In an incorporated city or large urban county"] == "pass"
+    assert tests[1]["result"] == "pass"
+
+
+def test_shra_fire_never_passes_on_very_high_only_maps():
+    # fact sheet says 'fire hazard zones' with no severity; we only map Very High, so absence is unknown
+    fire = next(t for t in pathways.shra({"in_fire_zone": False}) if "fire" in t["test"])
+    assert fire["result"] == "unknown"
+
+
+def test_shra_single_family_is_unknown_not_pass():
+    zone = pathways.shra({"zoning_scag": "1110 Single Family Residential"})[1]
+    assert zone["result"] == "unknown" and "66499.41" in zone["why"]
+
+
+def test_shra_industrial_and_big_lots_fail():
+    ev = pathways.evaluate({"acres": 6, "zoning_scag": "1310 Light Industrial", "city": "Brea"})
+    assert ev["SHRA"]["verdict"] == "no"
+
+
+def test_fault_zone_test_uses_ap_layer():
+    hit = next(t for t in pathways.sb4({"in_fault_zone": True, "raw": {"fault_ap": [{"quad": "Seal Beach", "pct_of_site": 12.0}]}})
+               if "fault" in t["test"])
+    miss = next(t for t in pathways.sb4({"in_fault_zone": False}) if "fault" in t["test"])
+    none = next(t for t in pathways.sb4({}) if "fault" in t["test"])
+    assert (hit["result"], miss["result"], none["result"]) == ("fail", "pass", "unknown")
+    assert "Alquist-Priolo" in miss["why"]
+
+
+def test_archived_surplus_notice_is_maybe_not_yes():
+    site = {"surplus_notice": True, "raw": {"sla": {"status": "Archive"}}}
+    assert pathways.evaluate(site)["SLA"]["verdict"] == "maybe"
+    site["raw"]["sla"]["status"] = "Active"
+    assert pathways.evaluate(site)["SLA"]["verdict"] == "yes"

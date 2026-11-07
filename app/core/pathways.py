@@ -2,7 +2,8 @@
 
 OWNER: Builder A (Data & Rules).
 Rule from CLAUDE.md: never invent a statute detail. Every test and note below comes from the HCD
-Housing Law Fact Sheets (April 2026), read in full on 2026-11-07, with the page cited. Anything our
+Housing Law Fact Sheets (April 2026), read in full on 2026-11-07, with the page cited (SB 684 / SB 1123:
+the combined PDF, pp. 67-68). Anything our
 data cannot check stays "unknown": that is most of SB 4's list, and we show it rather than hide it.
 
 evaluate() returns, per pathway: label, verdict, tests (pass / fail / unknown) and notes
@@ -67,6 +68,20 @@ def _flood(site: dict, source: str) -> list[dict]:
     return out
 
 
+def _fault(site: dict, source: str) -> dict:
+    v = site.get("in_fault_zone")
+    name = "Not in an earthquake fault zone (p.2)"
+    term = ("The fact sheet does not define the term; we use the State's Alquist-Priolo Earthquake Fault Zones "
+            "(CGS, PRC 2621-2630)")
+    if v is None:
+        return _t(name, UNKNOWN, "Fault-zone layer not checked for this site", source)
+    if v:
+        quads = ", ".join(sorted({x.get("quad") for x in _raw(site).get("fault_ap", []) if x.get("quad")}))
+        return _t(name, FAIL, f"Overlaps an Alquist-Priolo zone ({_overlaps(_raw(site).get('fault_ap'), 'quad') or quads}). "
+                              + term, source)
+    return _t(name, PASS, "No overlap with an Alquist-Priolo Earthquake Fault Zone. " + term, source)
+
+
 def _flag_absent(site: dict, key: str, label: str, source: str, unchecked: str | None = None) -> dict:
     v = site.get(key)
     if v is None:
@@ -99,8 +114,7 @@ def sb4(site: dict) -> list[dict]:
                                                     "including single-family and non-residential", SB4))
     tests.append(_fire(site, SB4))
     tests += _flood(site, SB4)
-    tests.append(_flag_absent(site, "in_fault_zone", "earthquake fault zone", SB4,
-                              "CGS fault-zone service needs a login: not checked"))
+    tests.append(_fault(site, SB4))
     tests.append(_t("No other listed environmental exclusion (p.2)", UNKNOWN,
                     "Not checked: farmland, agricultural-protection land, wetlands, hazardous waste, NCCP "
                     "conservation land, protected-species habitat, conservation easement", SB4))
@@ -160,6 +174,84 @@ SB9_NOTES = [
 ]
 
 
+# ---------------------------------------------------------------------------- SB 684 / SB 1123
+SHRA_SRC = "hcd_law_factsheets"
+MULTIFAMILY_CODES = {"1120", "1121", "1122", "1123", "1124", "1125"}  # SCAG legend group "Multi-Family Residential"
+NON_RESIDENTIAL_PREFIXES = ("13", "14", "18", "2", "4", "8888")  # SCAG legend: industrial, transport/utilities,
+# open space, agriculture, water, undevelopable
+
+
+def shra(site: dict) -> list[dict]:
+    """Starter Home Revitalization Act: SB 684 (2023) + SB 1123 (2024), Gov Code 65852.28, 65913.4.5, 66499.41.
+    Source: HCD Housing Law Fact Sheets (April 2026), combined PDF pp. 67-68 ('1 of 2', '2 of 2')."""
+    acres = site.get("acres")
+    if acres is None:
+        size = _t("Lot under 5 acres (p.67)", UNKNOWN, "Lot size unknown", SHRA_SRC)
+    elif acres < 5:
+        size = _t("Lot under 5 acres (p.67)", PASS, f"{acres} acres", SHRA_SRC)
+    else:
+        size = _t("Lot under 5 acres (p.67)", FAIL, f"{acres} acres", SHRA_SRC)
+
+    zs = site.get("zoning_scag") or ""
+    code = zs.split(" ", 1)[0] if zs else ""
+    local = site.get("zoning_local")
+    shown = f"SCAG {zs}" + (f"; city code {local}" if local else "")
+    zname = "Zoned for multifamily, or a single-family lot under SB 1123 (p.67-68)"
+    if not code:
+        zone = _t(zname, UNKNOWN, "Zoning not joined yet", SHRA_SRC)
+    elif code in MULTIFAMILY_CODES:
+        zone = _t(zname, PASS, f"{shown}. SCAG's regional code is a translation: confirm the city's zone", SHRA_SRC)
+    elif code in SINGLE_FAMILY_CODES:
+        zone = _t(zname, UNKNOWN, f"{shown}. SB 1123 (effective July 1, 2025) extends SHRA to single-family zones, "
+                                  "headlined for vacant lots; its conditions are not in the fact sheet: read Gov Code "
+                                  "66499.41", SHRA_SRC)
+    elif code.startswith(NON_RESIDENTIAL_PREFIXES):
+        zone = _t(zname, FAIL, f"{shown}: not a zone that allows multifamily housing", SHRA_SRC)
+    else:
+        zone = _t(zname, UNKNOWN, f"{shown}: SHRA applies in any zone that allows multifamily, including mixed-use "
+                                  "(HCD letter to Hayward, Jan 28 2025, p.67). Confirm the city's zone allows it",
+                  SHRA_SRC)
+
+    city = site.get("city")
+    if not city:
+        inc = _t("In an incorporated city or large urban county (p.67)", UNKNOWN, "City unknown", SHRA_SRC)
+    elif city == "County of Orange":
+        inc = _t("In an incorporated city or large urban county (p.67)", UNKNOWN,
+                 "Unincorporated: the fact sheet does not define 'large urban county'", SHRA_SRC)
+    else:
+        inc = _t("In an incorporated city or large urban county (p.67)", PASS, f"City of {city}", SHRA_SRC)
+
+    fire = site.get("in_fire_zone")
+    fname = "Not in a fire hazard zone (p.67)"
+    if fire:
+        f = _t(fname, FAIL, f"Overlaps a Very High fire zone ({_overlaps(_raw(site).get('fire_very_high'), 'layer')})",
+               SHRA_SRC)
+    else:
+        f = _t(fname, UNKNOWN, "The fact sheet says 'fire hazard zones' without a severity; we only check Very High "
+                               "zones, so lower-severity zones are not ruled out", SHRA_SRC)
+
+    eu = _raw(site).get("existing_use") or {}
+    tname = "Does not displace rent-controlled or tenant-occupied housing (p.67)"
+    if eu.get("vacant"):
+        ten = _t(tname, PASS, f"Existing use is {eu.get('label')} (SCAG 2024): no housing to displace", SHRA_SRC)
+    else:
+        ten = _t(tname, UNKNOWN, f"Existing use: {eu.get('label') or 'unknown'}. Tenancy and rent control are not in "
+                                 "public data", SHRA_SRC)
+    other = _t("Not on other environmentally sensitive land (p.67)", UNKNOWN,
+               "Not checked: farmland, wetlands and the statute's full list", SHRA_SRC)
+    return [size, zone, inc, f, ten, other]
+
+
+SHRA_NOTES = [
+    "Up to 10 lots and 10 total units (p.67); SB 1123: up to 10 units excluding ADUs (p.68). Fits a 4-12 home "
+    "ownership project only at 10 or fewer.",
+    "Ministerial approval within 60 days, deemed approved if the city does not act; exempt from CEQA (p.67).",
+    "Can be fee simple ownership, a common interest development (condo/HOA) or a community land trust (p.67-68).",
+    "Must comply with local inclusionary housing requirements (p.67). Cities cannot impose excessive setbacks, "
+    "parking mandates or low floor-area ratios that reduce allowed density (p.67).",
+]
+
+
 # ---------------------------------------------------------------------------- other pathways
 def _existing_use(site: dict) -> tuple[str, bool]:
     """(' Existing use (SCAG 2024): <label>.' or '', is_under_construction)."""
@@ -202,16 +294,27 @@ def surplus_land(site: dict) -> list[dict]:
     why = {PASS: "Public agency posted a Surplus Land Act notice" + detail,
            FAIL: "No notice for this APN in HCD's Surplus Land Act list (checked 2026-11-07)",
            UNKNOWN: "Surplus notices not joined yet"}[res] + (_existing_use(site)[0] if res == PASS else "")
-    return [_t("Surplus Land Act notice", res, why, "hcd_sla_notices")]
+    tests = [_t("Surplus Land Act notice", res, why, "hcd_sla_notices")]
+    if res == PASS:
+        status = n.get("status")
+        if status == "Active":
+            tests.append(_t("Notice window open (Active)", PASS, "Sent to HCD within the last 60 days", "hcd_sla_notices"))
+        else:
+            tests.append(_t("Notice window open (Active)", UNKNOWN,
+                            f"Status {status or 'unknown'}: sent to HCD more than 60 days ago, so the 60-day interest "
+                            "window has likely passed. Availability is unknown until someone calls the agency",
+                            "hcd_sla_notices"))
+    return tests
 
 
 PATHWAYS = {
     "SB4": ("SB 4 faith / college land", sb4),
     "SB9": ("SB 9 lot split / duplex", sb9),
+    "SHRA": ("SB 684 / SB 1123 starter homes (10 or fewer)", shra),
     "HE": ("Housing-element site", housing_element),
     "SLA": ("Surplus public land", surplus_land),
 }
-NOTES = {"SB4": SB4_NOTES, "SB9": SB9_NOTES}
+NOTES = {"SB4": SB4_NOTES, "SB9": SB9_NOTES, "SHRA": SHRA_NOTES}
 
 
 def verdict(tests: list[dict]) -> str:

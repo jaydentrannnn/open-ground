@@ -13,6 +13,7 @@ Per site:
   - SB 4 lead: an OpenStreetMap place of worship inside the parcel -> owner_type_proxy "faith_proxy".
   - existing land use (SCAG 2024, "updated as of July 2025"), joined like zoning: flags sites that are vacant,
     parking, under construction (stale: may already be in development) or religious facilities (SB 4 lead).
+  - context (not legal tests): CGS liquefaction and landslide zones, CalEnviroScreen 5.0 tract percentiles.
   - Surplus Land Act notices (fetch_surplus.py): housing-element sites get surplus_notice by APN match, and
     OC surplus parcels NOT on a housing-element list are added as their own sites (outline from SCAG zoning
     by APN; the notice's point if no match). Includes Santa Ana, which the housing-element layer lacks.
@@ -32,6 +33,10 @@ from common import PROCESSED, RAW, attr_join, get, scag_legend, write_json
 ZONING = "https://maps.scag.ca.gov/scaggis/rest/services/LDX/Zoning_poly_OR/MapServer/0"
 LANDUSE = "https://maps.scag.ca.gov/scaggis/rest/services/LDX/Existinglanduse_poly_OR/MapServer/0"
 SQM_PER_ACRE = 4046.8564224  # international acre in square meters (unit definition)
+# Cities with NO rows in the SCAG housing-element layer (checked 2026-11-07, see fetch_sites.py). For a surplus
+# parcel there, "on a housing-element list?" is unknown (null), not False: we never had that city's list.
+NOT_IN_HE_LAYER = {"Santa Ana", "Costa Mesa", "Huntington Beach", "Orange", "Tustin", "Rancho Santa Margarita",
+                   "Laguna Woods"}
 
 ap = argparse.ArgumentParser()
 ap.add_argument("--limit", type=int, default=None)
@@ -121,7 +126,10 @@ def load_layer(name):
     return {"tree": STRtree(geoms), "geoms": geoms, "props": [f.get("properties", {}) for f in feats]}
 
 
-L = {n: load_layer(n) for n in ("flood", "fire_lra25", "fire_lra", "fire_sra", "hqta", "worship")}
+L = {n: load_layer(n) for n in ("flood", "fire_lra25", "fire_lra", "fire_sra", "hqta", "worship",
+                                "liquefaction", "landslide", "fault_ap")}
+ces_path = RAW / "ces5_oc.json"
+CES = json.loads(ces_path.read_text()) if ces_path.exists() else None  # tract -> CalEnviroScreen 5.0 percentiles
 
 
 def hits(layer, geom):
@@ -148,7 +156,8 @@ def pct(s):
     return None if s is None else round(100 * s, 1)
 
 
-FIRE_SRC = ["oc_floodplains", "calfire_fhsz_lra_2025", "oc_fhsz_lra", "calfire_fhsz_sra_2007", "caltrans_hqta"]
+FIRE_SRC = ["oc_floodplains", "calfire_fhsz_lra_2025", "oc_fhsz_lra", "calfire_fhsz_sra_2007", "caltrans_hqta", "cgs_ap_fault",
+            "oc_liquefaction", "cgs_landslide", "ces5"]
 
 
 def checks(site, use_worship=True):
@@ -160,8 +169,12 @@ def checks(site, use_worship=True):
     sra, sra_h = any_hit(L["fire_sra"], site)        # CAL FIRE SRA 2007 (outdated)
     hqta, _ = any_hit(L["hqta"], site)
     worship_h = hits(L["worship"], site) if use_worship else []
+    liq, liq_h = any_hit(L["liquefaction"], site)   # context only: CGS seismic hazard zone (OC copy)
+    slide, slide_h = any_hit(L["landslide"], site)  # context only: CGS landslide zone
+    fault, fault_h = any_hit(L["fault_ap"], site)    # SB 4 test: CGS Alquist-Priolo Earthquake Fault Zone
     return {
         "in_fire_zone": True if (lra25 or lra or sra) else (None if None in (lra25, sra) else False),
+        "in_fault_zone": fault,
         "in_flood_zone": sfha, "in_hqta": hqta, "_worship": worship_h or [],
         "raw": {
             "flood_sfha": [{"zone": q.get("FLD_ZONE"), "pct_of_site": pct(s)} for q, s in sfha_h],
@@ -170,6 +183,12 @@ def checks(site, use_worship=True):
                               + [{"layer": "LRA (OC copy, vintage unknown)", "pct_of_site": pct(s)} for _, s in lra_h]
                               + [{"layer": "SRA 2007 (CAL FIRE)", "pct_of_site": pct(s)} for _, s in sra_h],
             "worship_osm": [{"osm_id": q.get("osm_id"), "name": q.get("name")} for q, _ in (worship_h or [])],
+            "fault_ap": [{"quad": q.get("QUAD_NAME"), "pct_of_site": pct(s)} for q, s in fault_h],
+            "context": {  # shown per site; NOT legal tests. null = layer not loaded
+                "liquefaction_zone": liq, "landslide_zone": slide,
+                "liquefaction_quads": sorted({q.get("QUAD_NAME") for q, _ in liq_h if q.get("QUAD_NAME")}),
+                "landslide_quads": sorted({q.get("QUAD_NAME") for q, _ in slide_h if q.get("QUAD_NAME")}),
+            },
         },
     }
 
@@ -190,6 +209,8 @@ def sla_raw(r):
 
 
 def feature(geom, props):
+    if CES is not None:
+        props["raw"]["context"]["ces5"] = CES.get(props.get("tract_id"))  # None = tract not in CES 5.0
     pt = geom.representative_point()
     return {"type": "Feature", "geometry": {"type": "Point", "coordinates": [round(pt.x, 6), round(pt.y, 6)]},
             "properties": props}
@@ -221,7 +242,7 @@ for f in he:
         "surplus_notice": None if sla_rows is None else bool(notice),
         **zoning_fields(z),
         "in_fire_zone": c["in_fire_zone"], "in_flood_zone": c["in_flood_zone"],
-        "in_historic_district": None, "in_fault_zone": None, "in_hqta": c["in_hqta"],
+        "in_historic_district": None, "in_fault_zone": c["in_fault_zone"], "in_hqta": c["in_hqta"],
         "est_homes": int(cap) if cap is not None else None,
         "land_cost_mode": None, "land_cost_per_home": None,
         "source_ids": ["scag_he_sites", "scag_zoning", *FIRE_SRC] + (["hcd_sla_notices"] if sla_rows is not None else [])
@@ -248,16 +269,18 @@ for a, r in sorted(sla_only.items()):
         "name": f"{r['City']} · surplus land · APN {r.get('APN')}",
         "city": r["City"], "apn": r.get("APN"),
         "address": None if occupied_home else r.get("Address"),  # don't point the map at an occupied home
-        "acres": r.get("acres") if r.get("acres") is not None else z.get("ACRES"),
+        # parcel outline size first: notices sometimes repeat the whole site's size on every parcel
+        "acres": round(z["ACRES"], 3) if z.get("ACRES") is not None else r.get("acres"),
         "owner_type_proxy": "public_surplus",
-        "housing_element_site": False, "surplus_notice": True,
+        "housing_element_site": None if r["City"] in NOT_IN_HE_LAYER else False, "surplus_notice": True,
         **zoning_fields(z),
         "in_fire_zone": c["in_fire_zone"], "in_flood_zone": c["in_flood_zone"],
-        "in_historic_district": None, "in_fault_zone": None, "in_hqta": c["in_hqta"],
+        "in_historic_district": None, "in_fault_zone": c["in_fault_zone"], "in_hqta": c["in_hqta"],
         "est_homes": None, "land_cost_mode": None, "land_cost_per_home": None,
         "source_ids": ["hcd_sla_notices", "scag_zoning", *FIRE_SRC] + (["scag_landuse"] if lu else []),
         "synthetic": False,
         "raw": {"site_source": "surplus_notice", "outline": "parcel" if zf else "notice point only",
+                "notice_acres": r.get("acres"),
                 "zoning_acres": z.get("ACRES"), "slope": z.get("SLOPE"), "existing_use": lu, **c["raw"],
                 "sla": sla_raw(r)},
     }
