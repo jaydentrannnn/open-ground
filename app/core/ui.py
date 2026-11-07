@@ -44,3 +44,31 @@ def source_line(ids: list[str] | str):
 
 def money(x) -> str:
     return "unknown" if x is None else f"${x:,.0f}"
+
+
+# ---- Builder B additions: show unknown as a styled answer, never hide it ----
+RESULT_CHIP = {"pass": ":green-background[✅ yes]", "fail": ":red-background[❌ no]",
+               "unknown": ":gray-background[❔ unknown]"}
+VERDICT_BADGE = {"yes": ":green-background[✅ Yes]", "maybe": ":orange-background[❔ Maybe]",
+                 "no": ":red-background[❌ No]"}
+
+
+def chip(result: str, text: str | None = None) -> str:
+    """Markdown chip for a pass / fail / unknown result. Optional text replaces the default word."""
+    color = {"pass": "green", "fail": "red", "unknown": "gray"}.get(result, "gray")
+    if text is None:
+        return RESULT_CHIP.get(result, RESULT_CHIP["unknown"])
+    return f":{color}-background[{ICON.get(result, '❔')} {text}]"
+
+
+def verdict_badge(verdict: str) -> str:
+    return VERDICT_BADGE.get(verdict, VERDICT_BADGE["maybe"])
+
+
+def yes_no(v) -> str:
+    """True / False / None as Yes / No / a grey 'unknown' chip."""
+    return {True: "Yes", False: "No"}.get(v, ":gray-background[unknown]")
+
+
+def unknown(text: str):
+    st.markdown(f":gray-background[UNKNOWN] {text}")
