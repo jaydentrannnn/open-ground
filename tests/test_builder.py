@@ -155,6 +155,17 @@ def test_small_hazard_overlap_is_check_the_map_not_a_fail():
     assert [r["id"] for r in builder.rank([_row(whole), _row(BLANK), _row(sliver), _row(CLEAR)])["rows"]] == ["a", "e", "c", "w"]
 
 
+def test_app_edge_cutoff_matches_the_pipeline_sliver_cutoff():
+    """One cutoff for ranking, Hazards tab and law checks (2f1896a disagreed: app 5%, pipeline 1%)."""
+    import sys
+    from pathlib import Path
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "pipeline"))
+    import common
+    assert builder.EDGE_PCT == common.SLIVER_PCT
+    mid = {**CLEAR, "id": "m", "in_flood_zone": True, "raw": {**CLEAR["raw"], "flood_sfha": [{"pct_of_site": 2.8}]}}
+    assert builder.readiness(mid, 9)["hazard_clear"] is False  # 2.8% is a real overlap, same as the law checks say
+
+
 def test_small_existing_house_filter():
     house = {"est_homes": 2, "raw": {"existing_use": {"label": "Single Family Residential"}}}
     assert builder.small_existing_house(house)

@@ -21,7 +21,9 @@ LAW_PATHWAYS = tuple(pid for pid in pathways.PATHWAYS if pid not in LAND_SIGNALS
 LAW_NAMES = "; ".join(pathways.PATHWAYS[pid][0] for pid in LAW_PATHWAYS)
 # ASSUMPTION (team choice, no source): a hazard overlap under this share of the parcel is shown as
 # "edge: check the map" instead of ruling the site down. A small overlap may be a mapping sliver (see pathways).
-EDGE_PCT = 5.0
+# Must equal pipeline/common.py SLIVER_PCT (team decision 2026-11-07: 1%), so the ranking, the Hazards tab and
+# the law checks never disagree about the same parcel.
+EDGE_PCT = 1.0
 # ASSUMPTION: an existing single-family home where the city plans this many homes or fewer is someone's house
 # with room for an ADU or lot split, not a site a nonprofit would buy. Hidden by a sidebar filter.
 SMALL_HOUSE_MAX_HOMES = 2
