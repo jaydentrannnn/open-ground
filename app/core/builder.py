@@ -16,8 +16,9 @@ SORTS = ("Ready to call", "Area benefit", "Homes per $1M of gap")
 N_CHECKS = 7
 # Laws that can give a right to build. A housing-element listing (HE) is the city's plan and a Surplus Land Act
 # notice (SLA) is an offer of land: both are reasons to call, not permission, so they never make the headline "Yes".
-LAW_PATHWAYS = ("SB4", "SB9", "SHRA")
-LAW_NAMES = "SB 4, SB 9 and SB 684 / SB 1123"
+LAND_SIGNALS = ("HE", "SLA")
+LAW_PATHWAYS = tuple(pid for pid in pathways.PATHWAYS if pid not in LAND_SIGNALS)  # new laws join automatically
+LAW_NAMES = "; ".join(pathways.PATHWAYS[pid][0] for pid in LAW_PATHWAYS)
 # ASSUMPTION (team choice, no source): a hazard overlap under this share of the parcel is shown as
 # "edge: check the map" instead of ruling the site down. A small overlap may be a mapping sliver (see pathways).
 EDGE_PCT = 5.0
