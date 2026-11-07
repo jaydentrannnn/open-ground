@@ -14,6 +14,29 @@ FLOOD_SOURCES = ["oc_floodplains"]
 FIRE_SOURCES = ["calfire_fhsz_lra_2025", "oc_fhsz_lra", "calfire_fhsz_sra_2007"]
 SORTS = ("Ready to call", "Area benefit", "Homes per $1M of gap")
 N_CHECKS = 7
+# Laws that can give a right to build. A housing-element listing (HE) is the city's plan and a Surplus Land Act
+# notice (SLA) is an offer of land: both are reasons to call, not permission, so they never make the headline "Yes".
+LAW_PATHWAYS = ("SB4", "SB9", "SHRA")
+LAW_NAMES = "SB 4, SB 9 and SB 684 / SB 1123"
+# ASSUMPTION (team choice, no source): a hazard overlap under this share of the parcel is shown as
+# "edge: check the map" instead of ruling the site down. A small overlap may be a mapping sliver (see pathways).
+EDGE_PCT = 5.0
+# ASSUMPTION: an existing single-family home where the city plans this many homes or fewer is someone's house
+# with room for an ADU or lot split, not a site a nonprofit would buy. Hidden by a sidebar filter.
+SMALL_HOUSE_MAX_HOMES = 2
+
+
+def law_verdict(ev: dict) -> str:
+    """Best verdict among the by-right laws only (yes / maybe / no). See LAW_PATHWAYS."""
+    laws = {k: e for k, e in ev.items() if k in LAW_PATHWAYS}
+    return pathways.best_verdict(laws) if laws else "maybe"
+
+
+def small_existing_house(site: dict, max_homes: int = SMALL_HOUSE_MAX_HOMES) -> bool:
+    """True when SCAG land use says single-family home today and the city plans max_homes or fewer here."""
+    label = existing_use(site).get("label") or ""
+    homes = site.get("est_homes")
+    return label.startswith("Single Family") and homes is not None and homes <= max_homes
 
 
 def money(x) -> str:
@@ -87,6 +110,19 @@ def _current_use(site: dict) -> dict:
     return {**base, "result": FAIL, "text": f"in use today as {eu['label'].lower()}"}
 
 
+def _hazard(site: dict, key: str, flag: str, raw_key: str, name: str, sources: list[str], text: dict) -> dict:
+    """A hazard check. An overlap smaller than EDGE_PCT of the parcel becomes 'edge: check the map' (unknown),
+    so a mapping sliver does not sink a site. A point-only site (no share) that hits stays a fail."""
+    v = site.get(flag)
+    if v:
+        shares = [x.get("pct_of_site") for x in ((site.get("raw") or {}).get(raw_key) or [])]
+        known = [s for s in shares if s is not None]
+        if known and max(known) < EDGE_PCT:
+            return {"key": key, "kind": "hazard", "result": UNKNOWN, "edge": True, "sources": sources,
+                    "text": f"touches the edge of a {name} ({max(known):g}% of the parcel): check the map"}
+    return {"key": key, "kind": "hazard", "result": _neg(v), "text": text, "sources": sources}
+
+
 # ---------------------------------------------------------------------------- readiness
 def readiness(site: dict, max_homes: int) -> dict:
     """Seven checks from sourced site fields. Hazards can rule a site down; the rest are pluses.
@@ -98,12 +134,10 @@ def readiness(site: dict, max_homes: int) -> dict:
     homes = site.get("est_homes")
     owner = site.get("owner_type_proxy")
     checks = [
-        {"key": "flood", "kind": "hazard", "result": _neg(site.get("in_flood_zone")),
-         "text": {PASS: "clear of FEMA flood zones", FAIL: "in a FEMA flood zone", UNKNOWN: "flood zone"},
-         "sources": FLOOD_SOURCES},
-        {"key": "fire", "kind": "hazard", "result": _neg(site.get("in_fire_zone")),
-         "text": {PASS: "clear of very-high fire zones", FAIL: "in a very-high fire zone", UNKNOWN: "fire zone"},
-         "sources": FIRE_SOURCES},
+        _hazard(site, "flood", "in_flood_zone", "flood_sfha", "FEMA flood zone", FLOOD_SOURCES,
+                {PASS: "clear of FEMA flood zones", FAIL: "in a FEMA flood zone", UNKNOWN: "flood zone"}),
+        _hazard(site, "fire", "in_fire_zone", "fire_very_high", "very-high fire zone", FIRE_SOURCES,
+                {PASS: "clear of very-high fire zones", FAIL: "in a very-high fire zone", UNKNOWN: "fire zone"}),
         {"key": "transit", "kind": "plus", "result": _pos(site.get("in_hqta")),
          "text": {PASS: "near frequent transit", FAIL: "not in a transit area", UNKNOWN: "transit area"},
          "sources": ["caltrans_hqta"]},
@@ -123,16 +157,20 @@ def readiness(site: dict, max_homes: int) -> dict:
             c["text"] = c["text"][c["result"]]
     hazards = [c["result"] for c in checks if c["kind"] == "hazard"]
     hazard_clear = False if FAIL in hazards else (None if UNKNOWN in hazards else True)
+    # ranking tier: 0 = no hazard found (an edge-only overlap counts here; it still loses that check's point),
+    # 1 = a hazard layer unchecked, 2 = a hazard overlaps the parcel
+    open_unknown = any(c["result"] == UNKNOWN and not c.get("edge") for c in checks if c["kind"] == "hazard")
+    hazard_tier = 2 if FAIL in hazards else (1 if open_unknown else 0)
     passed = sum(c["result"] == PASS for c in checks)
     unknowns = [c["text"] for c in checks if c["result"] == UNKNOWN]
-    return {"checks": checks, "passed": passed, "hazard_clear": hazard_clear, "unknowns": unknowns,
-            "why": why_sentence(checks)}
+    return {"checks": checks, "passed": passed, "hazard_clear": hazard_clear, "hazard_tier": hazard_tier,
+            "unknowns": unknowns, "why": why_sentence(checks)}
 
 
 def why_sentence(checks: list[dict]) -> str:
     good = [c["text"] for c in checks if c["result"] == PASS]
-    bad = [c["text"] for c in checks if c["result"] == FAIL and c["kind"] == "hazard"]
-    unk = [c["text"] for c in checks if c["result"] == UNKNOWN]
+    bad = [c["text"] for c in checks if c["kind"] == "hazard" and (c["result"] == FAIL or c.get("edge"))]
+    unk = [c["text"] for c in checks if c["result"] == UNKNOWN and not c.get("edge")]
     hazard_pass = [c for c in checks if c["kind"] == "hazard" and c["result"] == PASS]
     if len(hazard_pass) == 2:  # shorter: merge the two hazard passes
         good = ["clear of flood and fire maps"] + [g for g in good if g not in {c["text"] for c in hazard_pass}]
@@ -153,7 +191,7 @@ _HAZ_ORDER = {True: 0, None: 1, False: 2}
 
 def _ready_key(r: dict):
     rd = r["ready"]
-    return (_HAZ_ORDER[rd["hazard_clear"]], -rd["passed"], -(r.get("area_score") if r.get("area_score") is not None else -1),
+    return (rd.get("hazard_tier", _HAZ_ORDER[rd["hazard_clear"]]), -rd["passed"], -(r.get("area_score") if r.get("area_score") is not None else -1),
             -(r.get("lower_income") or 0), len(rd["unknowns"]), str(r["id"]))
 
 
@@ -280,7 +318,8 @@ def one_pager(site: dict, ev: dict, ready: dict, area_sc: dict, tract: dict | No
     if s.get("synthetic"):
         site_lines.insert(0, "SYNTHETIC SITE FOR TESTING. NOT A REAL PARCEL.")
 
-    law = []
+    law = [f"Overall: {ICON[law_verdict(ev)]}, the best of the by-right laws we check ({LAW_NAMES}). "
+           "Being on a city's housing-element list is the city's plan, not permission to build."]
     for e in ev.values():
         law.append(f"{e['label']}: {ICON[e['verdict']]}")
         law += [f"    {ICON[t['result']]} {t['test']}: {t['why']}" + cite(t["source"]) for t in e["tests"]]

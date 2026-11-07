@@ -76,6 +76,10 @@ with st.sidebar:
     max_homes = st.number_input("Max homes per site · ASSUMPTION", 1, 200, A["site_rules"]["max_homes_default"]["value"],
                                 help=A["site_rules"]["max_homes_default"]["basis"])
     hide_hazard = st.checkbox("Hide sites in a flood or fire zone", value=False)
+    hide_houses = st.checkbox(f"Hide existing houses where the city plans {builder.SMALL_HOUSE_MAX_HOMES} or fewer homes",
+                              value=True,
+                              help="SCAG 2024 land use says a single-family home is there today: likely someone's house "
+                                   "with room for an ADU or lot split, not a site to buy. The cutoff is an ASSUMPTION.")
     want = st.multiselect("Pathway not ruled out", [v[0] for v in pathways.PATHWAYS.values()], default=[])
     hide_no = st.checkbox("Hide sites where every pathway says No", value=True)
 
@@ -160,6 +164,8 @@ for s in sites:
         continue
     if want and not any(e["label"] in want and e["verdict"] != "no" for e in ev.values()):
         continue
+    if hide_houses and builder.small_existing_house(s):
+        continue
     ready = builder.readiness(s, max_homes)
     if hide_hazard and ready["hazard_clear"] is False:
         continue
@@ -206,7 +212,8 @@ for i, (col, r) in enumerate(zip(st.columns(3), rows[:3])):
 
 with st.expander("How we rank (and what we can't rank on yet)"):
     st.markdown(
-        "**Ready to call** sorts sites clear of flood and fire maps first, then by how many of seven checks pass, "
+        "**Ready to call** sorts sites clear of flood and fire maps first (a hazard touching under "
+        f"{builder.EDGE_PCT:g}% of the parcel counts as 'check the map', an ASSUMPTION), then by how many of seven checks pass, "
         "then by Area Benefit Score, then by lower-income homes in the city's plan. **Unknown never counts as a pass.**\n\n"
         "1. Clear of FEMA flood zones · 2. Clear of very-high fire zones · 3. Near frequent transit · "
         "4. City planned lower-income homes here · 5. Fits your max homes (ASSUMPTION) · "
@@ -264,7 +271,7 @@ with right:
     if not on_map:
         st.info("None of these sites has coordinates: use the shortlist.")
     st.caption(f"Top {min(len(rows), MAP_LIMIT)} of {len(rows):,} shown. 🟢 clear of flood and fire maps · "
-               "🔴 in a flood or fire zone · ⚪ not checked. Numbers = call first.")
+               "🔴 in a flood or fire zone · ⚪ not checked, or a hazard only touches the edge. Numbers = call first.")
     name_to_id = {r["site"]["name"]: r["id"] for _, r in on_map}  # popups show the name (unique), not the raw id
     pid = name_to_id.get((clicked or {}).get("last_object_clicked_popup"))
     if pid and pid != ss.get("_last_map"):
@@ -296,7 +303,9 @@ q1, q2 = st.columns(2)
 q3, q4 = st.columns(2)
 
 with q1.container(border=True):
-    st.markdown(f"### ⚖️ Can we build? {ui.verdict_badge(r['best'])}")
+    st.markdown(f"### ⚖️ Can we build? {ui.verdict_badge(builder.law_verdict(ev))}")
+    st.caption(f"Best of the by-right laws we check ({builder.LAW_NAMES}). Being on a city's housing-element list is "
+               "the city's plan, not permission to build.")
     for e in ev.values():
         n = {k: sum(t["result"] == k for t in e["tests"]) for k in ("pass", "fail", "unknown")}
         st.markdown(f"{ui.verdict_badge(e['verdict'])} **{e['label']}** · {n['pass']} pass · {n['fail']} fail · "

@@ -134,3 +134,30 @@ def test_surplus_notice_and_vacant_land_are_leads():
     assert checks["land_lead"]["result"] == "pass" and "may be stale" in checks["land_lead"]["text"]
     assert checks["use"]["result"] == "pass" and checks["use"]["text"] == "vacant land today"
     assert builder.readiness(BLANK, 9)["checks"][-1]["result"] == "unknown"
+
+
+def test_housing_element_listing_alone_is_not_a_yes():
+    for s in contracts.load_sites()[:200]:
+        ev = pathways.evaluate(s)
+        assert builder.law_verdict(ev) != "yes" or any(ev[k]["verdict"] == "yes" for k in builder.LAW_PATHWAYS)
+    assert builder.law_verdict({"HE": {"verdict": "yes"}, "SB4": {"verdict": "no"}}) == "no"
+
+
+def test_small_hazard_overlap_is_check_the_map_not_a_fail():
+    sliver = {**CLEAR, "id": "e", "in_flood_zone": True, "raw": {**CLEAR["raw"], "flood_sfha": [{"pct_of_site": 0.4}]}}
+    whole = {**CLEAR, "id": "w", "in_flood_zone": True, "raw": {**CLEAR["raw"], "flood_sfha": [{"pct_of_site": 100.0}]}}
+    point = {**CLEAR, "id": "p", "in_flood_zone": True, "raw": {**CLEAR["raw"], "flood_sfha": [{"pct_of_site": None}]}}
+    rd = builder.readiness(sliver, 9)
+    assert rd["hazard_clear"] is None and "check the map" in rd["why"] and "Watch:" in rd["why"]
+    assert builder.readiness(whole, 9)["hazard_clear"] is False
+    assert builder.readiness(point, 9)["hazard_clear"] is False  # no share known: a hit stays a fail
+    # an edge overlap ranks with clear sites (one point fewer), above unchecked and overlapping ones
+    assert [r["id"] for r in builder.rank([_row(whole), _row(BLANK), _row(sliver), _row(CLEAR)])["rows"]] == ["a", "e", "c", "w"]
+
+
+def test_small_existing_house_filter():
+    house = {"est_homes": 2, "raw": {"existing_use": {"label": "Single Family Residential"}}}
+    assert builder.small_existing_house(house)
+    assert not builder.small_existing_house({**house, "est_homes": 12})
+    assert not builder.small_existing_house({**house, "est_homes": None})  # unknown is never hidden
+    assert not builder.small_existing_house({"est_homes": 1, "raw": {"existing_use": {"label": "Urban Vacant"}}})
