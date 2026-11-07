@@ -1,0 +1,8 @@
+{
+  "about": "Freddie Mac PMMS 30-year fixed average. Two points copied from the event repo's Lane 3 DATA-SOURCES.md. Builder C: replace with the full series from pipeline/fetch_rates.py.",
+  "source_ids": ["pmms"],
+  "series": [
+    {"date": "2026-10-08", "rate_30yr": 0.0740},
+    {"date": "2026-11-05", "rate_30yr": 0.0718}
+  ]
+}

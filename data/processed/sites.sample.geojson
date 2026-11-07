@@ -1,0 +1,26 @@
+{
+  "type": "FeatureCollection",
+  "about": "SYNTHETIC sample sites for building the UI before real data exists. NOT real parcels, owners or addresses. Builder A replaces this with data/processed/sites.geojson.",
+  "features": [
+    {"type": "Feature", "geometry": {"type": "Point", "coordinates": [-117.8677, 33.7455]},
+     "properties": {"id": "SYN-001", "name": "SYNTHETIC: congregation parking lot", "city": "Santa Ana", "apn": null, "address": null, "acres": 1.6,
+       "owner_type_proxy": "faith_proxy", "housing_element_site": false, "surplus_notice": false, "zoning_local": null, "zoning_scag": "Single-family residential",
+       "in_fire_zone": false, "in_flood_zone": false, "in_historic_district": null, "in_fault_zone": null, "in_hqta": true,
+       "tract_id": "SYN-T1", "est_homes": 8, "land_cost_mode": "ground_lease", "land_cost_per_home": null, "source_ids": ["synthetic_deal"], "synthetic": true}},
+    {"type": "Feature", "geometry": {"type": "Point", "coordinates": [-117.8920, 33.7280]},
+     "properties": {"id": "SYN-002", "name": "SYNTHETIC: city surplus lot", "city": "Santa Ana", "apn": null, "address": null, "acres": 0.5,
+       "owner_type_proxy": "public_surplus", "housing_element_site": true, "surplus_notice": true, "zoning_local": null, "zoning_scag": "Multi-family residential",
+       "in_fire_zone": false, "in_flood_zone": null, "in_historic_district": false, "in_fault_zone": null, "in_hqta": true,
+       "tract_id": "SYN-T2", "est_homes": 6, "land_cost_mode": "purchase", "land_cost_per_home": null, "source_ids": ["synthetic_deal"], "synthetic": true}},
+    {"type": "Feature", "geometry": {"type": "Point", "coordinates": [-117.8400, 33.7600]},
+     "properties": {"id": "SYN-003", "name": "SYNTHETIC: listed 12-unit lot", "city": "Santa Ana", "apn": null, "address": null, "acres": 0.7,
+       "owner_type_proxy": "private", "housing_element_site": true, "surplus_notice": false, "zoning_local": null, "zoning_scag": "Mixed use",
+       "in_fire_zone": false, "in_flood_zone": true, "in_historic_district": false, "in_fault_zone": null, "in_hqta": false,
+       "tract_id": "SYN-T3", "est_homes": 12, "land_cost_mode": "purchase", "land_cost_per_home": null, "source_ids": ["synthetic_deal"], "synthetic": true}},
+    {"type": "Feature", "geometry": {"type": "Point", "coordinates": [-117.9000, 33.7150]},
+     "properties": {"id": "SYN-004", "name": "SYNTHETIC: single-family lot (SB 9 / ADU)", "city": "Santa Ana", "apn": null, "address": null, "acres": 0.2,
+       "owner_type_proxy": "private", "housing_element_site": false, "surplus_notice": false, "zoning_local": null, "zoning_scag": "Single-family residential",
+       "in_fire_zone": false, "in_flood_zone": false, "in_historic_district": false, "in_fault_zone": null, "in_hqta": null,
+       "tract_id": "SYN-T2", "est_homes": 2, "land_cost_mode": "purchase", "land_cost_per_home": null, "source_ids": ["synthetic_deal"], "synthetic": true}}
+  ]
+}

@@ -1,0 +1,5 @@
+{
+  "SYN-T1": {"synthetic": true, "name": "SYNTHETIC tract 1", "households": 1800, "median_hh_income": 72000, "rent_burden_pct": 58, "overcrowded_pct": 22, "eligible_households": 1400, "low_wage_jobs": 2400, "opportunity_score": 1},
+  "SYN-T2": {"synthetic": true, "name": "SYNTHETIC tract 2", "households": 1500, "median_hh_income": 88000, "rent_burden_pct": 49, "overcrowded_pct": 14, "eligible_households": 950, "low_wage_jobs": 1600, "opportunity_score": 2},
+  "SYN-T3": {"synthetic": true, "name": "SYNTHETIC tract 3", "households": 2100, "median_hh_income": 105000, "rent_burden_pct": 41, "overcrowded_pct": 8, "eligible_households": null, "low_wage_jobs": 900, "opportunity_score": 3}
+}

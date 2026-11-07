@@ -1,0 +1,16 @@
+{
+  "about": "Orange County 2026 State income limits, by household size. Transcribed from the City of Irvine 2026 table. VERIFY each value against the HCD June 23, 2026 revised PDF (it replaced the May 29 version) before demo. null = not transcribed yet: fill from the PDF, never guess.",
+  "source_ids": ["hcd_income_2026", "irvine_limits_2026"],
+  "checked": "2026-11-07",
+  "area_median_income_4p": {"value": 136600, "note": "Shown on a Newport Beach FY2026 table; confirm in HCD PDF"},
+  "by_household_size": {
+    "1": {"extremely_low": 39100, "very_low": 65150, "low": 104200, "moderate": 116400},
+    "2": {"extremely_low": 44700, "very_low": 74450, "low": 119100, "moderate": 133050},
+    "3": {"extremely_low": 50300, "very_low": 83750, "low": 134000, "moderate": 149650},
+    "4": {"extremely_low": 55850, "very_low": 93050, "low": 148850, "moderate": 166300},
+    "5": {"extremely_low": 60350, "very_low": 100500, "low": 160800, "moderate": 179600},
+    "6": {"extremely_low": 64800, "very_low": 107950, "low": 172700, "moderate": 192900},
+    "7": {"extremely_low": 69300, "very_low": 115400, "low": 184600, "moderate": 206200},
+    "8": {"extremely_low": 73750, "very_low": null, "low": null, "moderate": 219500}
+  }
+}

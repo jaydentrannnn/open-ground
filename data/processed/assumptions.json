@@ -1,0 +1,31 @@
+{
+  "about": "EVERY number we made up lives here, labelled ASSUMPTION with what it is based on. The UI and README read from this file. Replace with real numbers (e.g. from Habitat OC) and change the label to the source id.",
+  "family": {
+    "household_size": {"value": 4, "label": "ASSUMPTION", "basis": "Typical family size for demo"},
+    "annual_income": {"value": 90000, "label": "ASSUMPTION", "basis": "Demo family below the OC 4-person low-income limit"},
+    "housing_share": {"value": 0.30, "label": "ASSUMPTION", "basis": "Lane 3 brief: housing costs ~30-35% of income (source lane3_brief); statute HSC 50052.5 not yet coded"},
+    "monthly_tax_insurance_hoa": {"value": 400, "label": "ASSUMPTION", "basis": "Placeholder; no source"},
+    "habitat_mortgage_rate": {"value": null, "label": "UNKNOWN", "basis": "Habitat OC's actual rate is unknown: ask them. UI lets you enter one"},
+    "term_years": {"value": 30, "label": "ASSUMPTION", "basis": "Standard 30-year fixed"}
+  },
+  "cost_per_home_defaults": {
+    "basis": "Copied from the event's SYNTHETIC worked example (source synthetic_deal). Replace with a real deal.",
+    "land_and_building_purchase": {"value": 360000, "label": "ASSUMPTION"},
+    "time_costs_while_waiting": {"value": 85000, "label": "ASSUMPTION"},
+    "construction_and_repairs": {"value": 40000, "label": "ASSUMPTION"},
+    "fees_design_legal_sales": {"value": 50000, "label": "ASSUMPTION"}
+  },
+  "other_sources_per_home_defaults": {
+    "public_subsidies": {"value": 100000, "label": "ASSUMPTION", "basis": "Synthetic example; placeholder city/state funds"},
+    "rent_earned_while_waiting": {"value": 55000, "label": "ASSUMPTION", "basis": "Synthetic example"}
+  },
+  "homeowner_adu": {
+    "build_cost": {"value": 300000, "label": "ASSUMPTION", "basis": "Placeholder; replace with a real quote"},
+    "monthly_rent": {"value": 2598, "label": "ASSUMPTION", "basis": "Rentometer OC 1-bedroom average (source rentometer_oc; data date not shown)"},
+    "vacancy_and_expense_share": {"value": 0.25, "label": "ASSUMPTION", "basis": "Placeholder for vacancy, maintenance, insurance"},
+    "cash_in": {"value": 50000, "label": "ASSUMPTION", "basis": "Placeholder owner cash"}
+  },
+  "site_rules": {
+    "max_homes_default": {"value": 9, "label": "ASSUMPTION", "basis": "Keep under 10 homes: 10+ may trigger SB 4 prevailing wage (UNVERIFIED) and SB 684/1123 caps at 10"}
+  }
+}

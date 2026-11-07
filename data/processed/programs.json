@@ -1,0 +1,11 @@
+{
+  "about": "Gap-closing programs. Terms are copied from program pages as summarized in the event repo; FUNDS ARE UNCONFIRMED until someone checks the current round. Never show a program as available without the status.",
+  "checked": "2026-11-07",
+  "programs": [
+    {"id": "calhome", "name": "CalHome (HCD)", "mode": ["builder", "homeowner"], "who_applies": "Local agencies and nonprofits (e.g. Habitat), not families directly", "what": "First-time buyer mortgage assistance, ADU/JADU help, homeownership development loans", "max": "unknown for current round", "status": "Periodic competitive round: next round date UNKNOWN", "source_id": "calhome"},
+    {"id": "myhome", "name": "CalHFA MyHome Assistance", "mode": ["builder"], "who_applies": "Buyer, through a CalHFA lender", "what": "Deferred junior loan for down payment / closing costs", "max": "up to 3.5% (FHA) or 3% (conventional) of price per CalHFA page", "status": "Check whether it can stack with a Habitat first mortgage: UNKNOWN", "source_id": "calhfa_programs"},
+    {"id": "dream", "name": "CalHFA Dream For All", "mode": ["builder"], "who_applies": "First-generation first-time buyer, by drawing", "what": "Shared-appreciation loan for down payment", "max": "up to 20% of price, capped at $150,000 per CalHFA page", "status": "2026 registration ran Feb 24 - Mar 16 (closed). Next round UNKNOWN", "source_id": "calhfa_dream"},
+    {"id": "adu_grant", "name": "CalHFA ADU Grant", "mode": ["homeowner"], "who_applies": "Homeowner", "what": "Reimburses ADU predevelopment costs", "max": "up to $40,000 per HCD ADU funding page", "status": "Availability UNVERIFIED", "source_id": "hcd_adu_funding"},
+    {"id": "city_funds", "name": "City housing funds (e.g. Santa Ana)", "mode": ["builder"], "who_applies": "Nonprofit developer", "what": "Local subsidy per project", "max": "unknown: varies by city and year", "status": "Ask the city housing division", "source_id": "calhome"}
+  ]
+}
