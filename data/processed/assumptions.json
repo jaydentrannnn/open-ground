@@ -42,7 +42,7 @@
     "cash_in": {"value": 50000, "label": "ASSUMPTION", "basis": "Placeholder owner cash"}
   },
   "site_rules": {
-    "max_homes_default": {"value": 9, "label": "ASSUMPTION", "basis": "Demo default for how many homes a small nonprofit takes on per site: the team's choice, NOT a legal threshold. Set your own. Note: per the HCD SB 4 fact sheet (Apr 2026, p.3), prevailing wage applies to every SB 4 project whatever its size"}
+    "max_homes_default": {"value": 9, "label": "ASSUMPTION", "basis": "Team's demo default; set your own. 9 is under the 10-unit ceiling of the SB 684 / SB 1123 starter-home pathway (HCD combined Housing Law Fact Sheets, Apr 2026, pp.67-68), so that pathway stays open. It is NOT a limit for SB 4: per the HCD SB 4 fact sheet (Apr 2026, p.3) prevailing wage applies to every SB 4 project whatever its size"}
   },
   "area_score": {
     "basis": "Area Benefit Score weights and the eligible-households proxy. The team's own choice, no source. They decide the ranking. The live values are in app/core/area.py (DEFAULT_WEIGHTS); tests/test_finance.py checks this copy matches.",
