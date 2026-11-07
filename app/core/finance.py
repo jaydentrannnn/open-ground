@@ -173,9 +173,13 @@ def statutory_monthly_cap(annual_income: float, household_size: int, bedrooms: i
         out["notes"].append("(b)(3): income at or above 70% of AMI; a funding agency MAY instead require "
                             "cost not exceed 30% of gross income")
         if annual_income > 0.70 * ami_household:
-            out["notes"].append("INTERPRETATION: the (b)(3) formula text covers lower-income households up to "
-                                "70% of AMI. For incomes above that, the text gives only the optional "
-                                "30%-of-income limit. We still apply 30% x 70% of AMI; confirm with the funder")
+            # The (b)(3) formula is written for lower-income households whose incomes "do not exceed 70 percent"
+            # of AMI. Above that, the text gives only the agency's optional income-based limit. We do not pick.
+            out["formula_cap_if_applied"] = out["monthly_cap"]
+            out["monthly_cap"] = None
+            out["reason"] = ("HSC 50052.5(b)(3): the 30% x 70% formula covers lower-income households up to 70% of "
+                             "AMI. This household is above that, where the statute gives only an optional "
+                             "agency limit (30% of gross income). Which applies is the funder's policy: UNKNOWN")
     return out
 
 
@@ -209,12 +213,17 @@ def statutory_price(
     k = loan_from_payment(1.0, annual_rate, years)  # loan supported per $1/month of P&I
     t = property_tax_rate / 12
     available = c["monthly_cap"] - monthly_fixed_costs - t * down_payment
-    loan = max(k * available / (1 + k * t), 0.0)
+    if available <= 0:
+        out.update(feasible=False,
+                   reason="The non-loan housing costs (25 CCR 6920 items) already reach the cap: no price works. "
+                          "Check the cost ASSUMPTIONS")
+        return out
+    loan = k * available / (1 + k * t)
     price = loan + down_payment
     tax = t * price
     out.update(loan=loan, price=price, monthly_property_tax=tax,
                monthly_for_loan=c["monthly_cap"] - monthly_fixed_costs - tax,
-               feasible=available > 0)
+               feasible=True)
     return out
 
 

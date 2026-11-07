@@ -54,7 +54,7 @@ size appropriate for the unit** (studio = 1 person, 1BR = 2 ... 4BR = 5, per 500
 |---|---|---|
 | Extremely low | 30% × 30% of size-adjusted median ÷ 12 | 50052.5(b)(1) |
 | Very low | 30% × 50% | (b)(2) |
-| Lower | 30% × 70% | (b)(3) |
+| Lower (income up to 70% of the median) | 30% × 70% | (b)(3) |
 | Moderate | 35% × 110% (and not less than 28% of the household's income) | (b)(4) |
 
 "Housing cost" includes everything **25 CCR 6920** lists: principal and interest, property tax, insurance,
@@ -67,7 +67,8 @@ benchmark price is **$153,751**. The common shortcut (30% of the family's own in
 
 Builder mode uses the **statutory benchmark by default**. A switch shows the household-budget version, and both use
 the same costs. The tool says when it can't answer: no price is shown when income is above moderate, the unit is over
-4 bedrooms, or the moderate-income floor is above the cap (a funder policy choice). Where the statute lets a funding
+4 bedrooms, a lower-income household earns more than 70% of the median (the statute leaves that to the funder), the
+moderate-income floor is above the cap (a funder policy choice), or the non-loan costs alone reach the cap. Where the statute lets a funding
 agency choose an income-based limit instead, the tool says so and doesn't pick.
 
 ## How Claude is used
@@ -252,9 +253,9 @@ Every row below is a placeholder. Replace it with a real number and its source. 
   good as those numbers. A nonprofit should type in its own.
 - **Which income table applies depends on the funder.** We use HCD State limits. HUD or State HOME limits can differ,
   and federal funds can override the unit-size rule in 50052.5(h).
-- **One reading of the statute is ours.** 50052.5(b)(3) gives the 30% × 70% formula for lower-income households up to
-  70% of the median; for households above that it only gives an optional income-based limit. We still apply 30% × 70%
-  and flag it as an interpretation in the tool.
+- **Lower-income households above 70% of the median get no statutory price.** 50052.5(b)(3) gives the 30% × 70%
+  formula only up to 70% of the median; above that it gives an optional income-based limit a funder may choose. The
+  tool shows "unknown" with that reason rather than picking (State Controller guidance treats the range separately).
 - **The mortgage rate is a market average**, not a quote, and not what a nonprofit lender charges (UNKNOWN).
 - **Fire maps differ in date.** Local areas use CAL FIRE's map dated 2025-03-24; the OC county copy has no date. State
   areas use CAL FIRE's 2007 map (OUTDATED); CAL FIRE's 2025 state-area layer calls itself a draft, so we don't use it.

@@ -120,13 +120,22 @@ def test_cap_very_low_3br():
     assert c["monthly_cap"] == pytest.approx(1_732.50)
 
 
-def test_cap_low_3br_and_agency_option():
-    # 30% x 70% x 138,600 / 12 = 2,425.50 ; 70% of 4p median = 97,020
-    c = finance.statutory_monthly_cap(120_000, 4, 3, LIMITS)
+def test_cap_low_3br_up_to_70pct_ami():
+    # 4p: low tier starts above 93,050; 70% of 4p median = 97,020. 30% x 70% x 138,600 / 12 = 2,425.50
+    c = finance.statutory_monthly_cap(95_000, 4, 3, LIMITS)
     assert c["tier"] == "low" and c["monthly_cap"] == pytest.approx(2_425.50)
+    assert c["agency_option_monthly"] is None
+
+
+def test_cap_low_above_70pct_ami_is_unknown_not_guessed():
+    # (b)(3) formula covers incomes "not exceeding 70 percent" of AMI; above it only an optional agency limit
+    c = finance.statutory_monthly_cap(120_000, 4, 3, LIMITS)
+    assert c["tier"] == "low" and c["monthly_cap"] is None and "funder" in c["reason"]
+    assert c["formula_cap_if_applied"] == pytest.approx(2_425.50)
     assert c["agency_option_monthly"] == pytest.approx(0.30 * 120_000 / 12)
-    assert finance.statutory_monthly_cap(95_000, 4, 3, LIMITS)["agency_option_monthly"] is None
-    assert any("INTERPRETATION" in n for n in c["notes"])  # 120k > 70% of 138,600
+    assert finance.statutory_price(120_000, 4, 3, LIMITS, 0.07, 550, 0.011)["price"] is None
+    # exactly 70% of AMI: the formula still applies
+    assert finance.statutory_monthly_cap(97_020, 4, 3, LIMITS)["monthly_cap"] == pytest.approx(2_425.50)
 
 
 def test_cap_uses_unit_size_not_family_size():
@@ -165,4 +174,4 @@ def test_statutory_price_falls_as_rate_rises_and_flags_infeasible():
     hi = finance.statutory_price(90_000, 4, 3, LIMITS, 0.08, 500, 0.011)["price"]
     assert hi < lo
     bad = finance.statutory_price(40_000, 1, 0, LIMITS, 0.07, 5_000, 0.011)
-    assert bad["feasible"] is False and bad["price"] == 0
+    assert bad["feasible"] is False and bad["price"] is None and "cap" in bad["reason"]

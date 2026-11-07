@@ -48,14 +48,14 @@ with c1:
     sourced = RENTS.get(str(bedrooms))
     if sourced is None:
         st.warning(f"No sourced market rent for a {unit.lower()} in our data: **UNKNOWN**. Enter your own.")
-    rent = st.number_input("Monthly rent · ASSUMPTION", 500, 10_000, int(sourced or RENTS["1"]), 50,
-                           help=RENTS["basis"])
+    rent = st.number_input("Monthly rent · ASSUMPTION" if sourced else "Monthly rent (your number)", 500, 10_000,
+                           int(sourced) if sourced else None, 50, help=RENTS["basis"], key=f"rent_{bedrooms}",
+                           placeholder="Enter a rent")
     exp = st.slider("Vacancy + upkeep share of rent · ASSUMPTION", 0.0, 0.5,
                     A["vacancy_and_expense_share"]["value"], 0.05, help=A["vacancy_and_expense_share"]["basis"])
 
-with c2:
+def payback_panel():
     res = finance.adu_cashflow(build, rent, rate, cash_in=cash, grants=grants, vacancy_and_expense_share=exp)
-    st.subheader("Does it pay back?")
     m = st.columns(3)
     m[0].metric("Loan payment / mo", ui.money(res["monthly_loan_payment"]), help=f"{ui.money(res['financed'])} over 30 years")
     m[1].metric("Net rent / mo", ui.money(res["net_rent"]), help=f"Rent minus {exp:.0%} for vacancy and upkeep")
@@ -78,6 +78,15 @@ with c2:
     st.dataframe(pd.DataFrame([{"rate": f"{s['rate']:.2%}", "loan payment / mo": ui.money(s["monthly_loan_payment"]),
                                 "cash flow / mo": ui.money(s["net_monthly"])} for s in sens]),
                  hide_index=True, width="stretch")
+
+
+with c2:
+    st.subheader("Does it pay back?")
+    if rent is None:
+        st.info(f"Enter a monthly rent for the {unit.lower()} to see the cash flow. We have no sourced market rent "
+                "for this unit type, so we won't guess one.")
+    else:
+        payback_panel()
 
     with st.expander("What is assumed here", expanded=False):
         ui.assumption(f"Cost per sq ft: {A['cost_per_sqft']['basis']}")
